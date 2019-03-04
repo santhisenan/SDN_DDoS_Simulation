@@ -20,21 +20,31 @@ def ddos_flood(host):
     # Attack the last host with IP 10.0.0.4
     # timout command is used to abort the hping3 command after the attack was performed for the specifed time
     host.cmd('timeout ' + str(episode_length) + 's hping3 -1 --flood -a '+ spoofed_ip +' '+ victim_host_ip)
+    host.cmd('killall hping3')
 
 def ddos_benign(host):
-    host.cmd('timeout ' + str(episode_length) + 's hping3 -1 --fast '+ victim_host_ip)
-   
+    host.cmd('timeout ' + str(episode_length) + 's hping3 -1 '+ victim_host_ip)
+    host.cmd('killall hping3')
+
 for i in range(episode_count):
-    attacking_host_id = random.randint(0, no_of_hosts - 1) # select a random host in between 1 and no_of_hosts - 1
+    print("Episode "+str(i))
+    attacking_host_id = random.randint(0, no_of_hosts - 2) # select a random host in between 1 and no_of_hosts - 1
     attacking_host = net.hosts[attacking_host_id]
 
-    benign_host_id = random.choice([i for i in range(0, no_of_hosts - 1) if i not in [attacking_host_id]])
+    benign_host_id = random.choice([i for i in range(0, no_of_hosts - 2) if i not in [attacking_host_id]])
     benign_host = net.hosts[benign_host_id]
+    
+    print(attacking_host)
+    print(benign_host)
 
-    t1 = threading.Thread(target=ddos_benign, args=(benign_host,)) 
+    t1 = threading.Thread(target=ddos_benign, args=(benign_host,))
+    t2 = threading.Thread(target=ddos_flood, args=(attacking_host,)) 
+ 
     t1.start()
-    ddos_flood(attacking_host)
+    t2.start()
+    # ddos_flood(attacking_host)
 
     t1.join()
+    t2.join()
 
 net.stop()

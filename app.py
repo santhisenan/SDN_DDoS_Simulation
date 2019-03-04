@@ -8,6 +8,11 @@ from ryu.lib import hub
 
 import numpy as np
 
+from ryu.lib.packet import packet
+from ryu.lib.packet import ethernet
+from ryu.lib.packet import ipv4
+from ryu.lib.packet import ether_types
+
 class SimpleMonitor13(simple_switch_13.SimpleSwitch13):
 
     def __init__(self, *args, **kwargs):
@@ -17,9 +22,10 @@ class SimpleMonitor13(simple_switch_13.SimpleSwitch13):
         self.unrolled_state = [0]*45
         self.topo_data = {'no_switch': 3, 'no_of_ports_per_switch': 3}
         self.init_thread = hub.spawn(self._monitor)
+        self.attack_count = 0
+        self.benign_count = 0
             
-    @set_ev_cls(ofp_event.EventOFPStateChange,
-                [MAIN_DISPATCHER, DEAD_DISPATCHER])
+    @set_ev_cls(ofp_event.EventOFPStateChange,[MAIN_DISPATCHER, DEAD_DISPATCHER])
     def _state_change_handler(self, ev):
         datapath = ev.datapath
         if ev.state == MAIN_DISPATCHER:
@@ -37,19 +43,39 @@ class SimpleMonitor13(simple_switch_13.SimpleSwitch13):
         while True:   
             self.get_state()
             hub.sleep(3)
-            self.preprocess_state()
+            # self.preprocess_state()
 
     def get_state(self):
         for dp in self.datapaths.values():
                 self._request_stats(dp)
+                if dp.id == 3: 
+                    self.send_aggregate_stats_request(dp) 
 
     def _request_stats(self, datapath):
         self.logger.debug('send stats request: %016x', datapath.id)
         ofproto = datapath.ofproto
         parser = datapath.ofproto_parser
-
         req = parser.OFPFlowStatsRequest(datapath)
         datapath.send_msg(req)
+        
+    def send_aggregate_stats_request(self, datapath):
+        ofp = datapath.ofproto
+        ofp_parser = datapath.ofproto_parser
+
+        cookie = cookie_mask = 0
+        match = ofp_parser.OFPMatch({"ipv4_src": '10.1.1.1', "ipv4_dst": '10.0.0.4'})
+        req = ofp_parser.OFPAggregateStatsRequest(datapath, 0,ofp.OFPTT_ALL,ofp.OFPP_ANY,ofp.OFPG_ANY,cookie, cookie_mask, match)
+        datapath.send_msg(req)
+
+    @set_ev_cls(ofp_event.EventOFPAggregateStatsReply, MAIN_DISPATCHER)
+    def aggregate_stats_reply_handler(self, ev):
+        body = ev.msg.body
+
+        self.logger.info('AggregateStats: packet_count=%d byte_count=%d '
+                        'flow_count=%d',
+                        body.packet_count, body.byte_count,
+                        body.flow_count)
+
 
     @set_ev_cls(ofp_event.EventOFPFlowStatsReply, MAIN_DISPATCHER)
     def _flow_stats_reply_handler(self, ev):
@@ -92,7 +118,7 @@ class SimpleMonitor13(simple_switch_13.SimpleSwitch13):
         next_unrolled_state = []
         for key in self.state:
             switch_data = self.state[key]
-
+            # print("Length of switch data:" + str(len(switch_data)))
             port_data, packet_count, byte_count, duration_nsec = switch_data[0], switch_data[1], switch_data[2], switch_data[3]
             
             for port in range(1, 1+self.topo_data['no_of_ports_per_switch']):
@@ -107,16 +133,60 @@ class SimpleMonitor13(simple_switch_13.SimpleSwitch13):
             next_unrolled_state.append(duration_nsec)
 
         
-        # next_unrolled_state_int =     
-        # print(next_unrolled_state)
+             
         next_unrolled_state= list(map(int, next_unrolled_state))
         temp=next_unrolled_state
         for i in range (0,45):
             next_unrolled_state[i]=next_unrolled_state[i]-self.unrolled_state[i]
         self.unrolled_state=temp
-        print(next_unrolled_state)
+        # print(next_unrolled_state)
+        # self.print_state(next_unrolled_state)
 
 
+    def print_state(self, unrolled_state):
+        # print("printing unrolled_state:")
+        for i in range(0,3):
+            # print("Switch "+ str(i+1))
+            for j in range(15):
+                print(unrolled_state[15*i+j], end = " ")
+            # print("\n")
+
+    # @set_ev_cls(ofp_event.EventOFPPacketIn, MAIN_DISPATCHER)
+    # def packet_handler(self, ev):
+
+    #     victim_dpid = 3
+    #     victim_ip = '10.0.0.4'
+
+    #     msg = ev.msg
+    #     datapath = msg.datapath
+    #     ofproto = datapath.ofproto
+    #     parser = datapath.ofproto_parser
+    #     in_port = msg.match['in_port']
+
+    #     pkt = packet.Packet(msg.data)
+    #     eth = pkt.get_protocols(ethernet.ethernet)[0]
+    #     ip_list = pkt.get_protocols(ipv4.ipv4)
+
+    #     if(len(ip_list) == 0):
+    #         return
+    #     ip = ip_list[0]
+    #     ip_dst = ip.dst
+    #     ip_src = ip.src
 
 
+    #     if eth.ethertype == ether_types.ETH_TYPE_LLDP:
+    #         # ignore lldp packet
+    #         return
 
+    #     dst = eth.dst
+    #     src = eth.src
+
+    #     if(ip_dst == '10.0.0.4' and ip_src == '10.1.1.1'):
+    #         self.attack_count += 1
+    #     elif(ip_dst == '10.0.0.4'):
+    #         self.benign_count += 1
+
+    #     # if(self.attack_count % 1000 == 0):
+    #         # print(self.benign_count)
+    #         # print(self.attack_count)
+    #         # print("*")
