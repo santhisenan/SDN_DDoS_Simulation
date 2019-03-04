@@ -14,6 +14,8 @@ class SimpleMonitor13(simple_switch_13.SimpleSwitch13):
         super(SimpleMonitor13, self).__init__(*args, **kwargs)
         self.datapaths = {}
         self.state = {}
+        self.unrolled_state = [0]*45
+        self.topo_data = {'no_switch': 3, 'no_of_ports_per_switch': 3}
         self.init_thread = hub.spawn(self._monitor)
             
     @set_ev_cls(ofp_event.EventOFPStateChange,
@@ -32,8 +34,10 @@ class SimpleMonitor13(simple_switch_13.SimpleSwitch13):
 
     def _monitor(self):
         hub.sleep(10)
-        self.get_state()
-        hub.sleep(3)
+        while True:   
+            self.get_state()
+            hub.sleep(3)
+            self.preprocess_state()
 
     def get_state(self):
         for dp in self.datapaths.values():
@@ -77,13 +81,42 @@ class SimpleMonitor13(simple_switch_13.SimpleSwitch13):
         temp=[]
         
         for stat in body:
-            temp.append(str(stat.port_no))
             temp.append(str(stat.rx_packets))
             temp.append(str(stat.rx_bytes))
             temp.append(str(stat.tx_packets))
             temp.append(str(stat.tx_bytes))
             self.state[ev.msg.datapath.id][0][stat.port_no]=temp
-        print(self.state)
+
+
+    def preprocess_state(self):
+        next_unrolled_state = []
+        for key in self.state:
+            switch_data = self.state[key]
+
+            port_data, packet_count, byte_count, duration_nsec = switch_data[0], switch_data[1], switch_data[2], switch_data[3]
+            
+            for port in range(1, 1+self.topo_data['no_of_ports_per_switch']):
+                if port in port_data:
+                    for val in port_data[port]:
+                        next_unrolled_state.append(val) 
+                else :
+                    for i in range(0,4):
+                        next_unrolled_state.append(0) 
+            next_unrolled_state.append(packet_count)
+            next_unrolled_state.append(byte_count)
+            next_unrolled_state.append(duration_nsec)
+
+        
+        # next_unrolled_state_int =     
+        # print(next_unrolled_state)
+        next_unrolled_state= list(map(int, next_unrolled_state))
+        temp=next_unrolled_state
+        for i in range (0,45):
+            next_unrolled_state[i]=next_unrolled_state[i]-self.unrolled_state[i]
+        self.unrolled_state=temp
+        print(next_unrolled_state)
+
+
 
 
 
