@@ -17,8 +17,9 @@ class SimpleMonitor13(simple_switch_13.SimpleSwitch13):
 
     def __init__(self, *args, **kwargs):
         super(SimpleMonitor13, self).__init__(*args, **kwargs)
-        self.packet_count ={'A':0,'B':0}
+        self.packet_count ={'A':0,'B':0,'T':0}
         self.agg=0
+        self.reward=0
         self.datapaths = {}
         self.state = {}
         self.unrolled_state = [0]*45
@@ -44,8 +45,7 @@ class SimpleMonitor13(simple_switch_13.SimpleSwitch13):
     def _monitor(self):
         hub.sleep(10)
         while True:   
-            self.get_state()
-            hub.sleep(3)
+            self.train()
             # self.preprocess_state()
 
     def get_state(self):
@@ -78,6 +78,7 @@ class SimpleMonitor13(simple_switch_13.SimpleSwitch13):
         self.packet_count['A']=temp-self.agg
         self.agg=temp
         self.packet_count['B']=self.unrolled_state[42]-self.packet_count['A']
+        self.calc_reward
 
 
     @set_ev_cls(ofp_event.EventOFPFlowStatsReply, MAIN_DISPATCHER)
@@ -142,11 +143,14 @@ class SimpleMonitor13(simple_switch_13.SimpleSwitch13):
         for i in range (0,45):
             next_unrolled_state[i]=next_unrolled_state[i]-self.unrolled_state[i]
         self.unrolled_state=temp
+        self.calc_reward()
         # print(next_unrolled_state)
         # self.print_state(next_unrolled_state)
 
-    def reward(self):
-        return 
+    def calc_reward(self):
+        pa=self.packet_count['A']/self.packet_count['T']
+        pb=self.packet_count['B']/self.packet_count['T']
+        self.reward= self.lambd*pb+(1-self.lambd)*(1-pa)
         
     def print_state(self, unrolled_state):
         # print("printing unrolled_state:")
@@ -155,6 +159,19 @@ class SimpleMonitor13(simple_switch_13.SimpleSwitch13):
             for j in range(15):
                 print(unrolled_state[15*i+j], end = " ")
             # print("\n")
+    def execute(self,action):
+        n=np.argmax(action)
+        binary='{0:02b}'.format(n)
+        count=0
+        for i in binary:
+            if i==1:
+                count=count+1
+                dp=self.datapaths[count]
+                ofp = self.dp.ofproto
+                parser = self.dp.ofproto_parser
+                bands=[]
+                dropband=parser.OFPMeterBandDrop(type_=ofp.OFPMBT_DROP,rate=int(100))
+                mod = parser.OFPMeterMod(self.dp,command=ofp.OFPMC_MODIFY,flags=ofp.OFPMF_PKTPS,meter_id=ofp.OFPM_ALL,bands=ofp.OFPMeterBandDrop)
 
     def train(self):
         agent=Agent()
@@ -163,3 +180,13 @@ class SimpleMonitor13(simple_switch_13.SimpleSwitch13):
         for e in range(episode_count+1):
             print("episode "+ str(e))
             self.get_state()
+            temp_state=self.unrolled_state
+            for t in range(10):
+                action=agent.act(self.unrolled_state)
+                self.get_state()
+                agent.memory.append((temp_state, action, self.reward, self.unrolled_state))
+                if len(agent.memory) > batch_size:
+                    agent.expReplay(batch_size)
+
+
+                
