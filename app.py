@@ -1,5 +1,5 @@
 from operator import attrgetter
-
+from agent import Agent 
 import simple_switch_13
 from ryu.controller import ofp_event
 from ryu.controller.handler import MAIN_DISPATCHER, DEAD_DISPATCHER
@@ -17,6 +17,8 @@ class SimpleMonitor13(simple_switch_13.SimpleSwitch13):
 
     def __init__(self, *args, **kwargs):
         super(SimpleMonitor13, self).__init__(*args, **kwargs)
+        self.packet_count ={'A':0,'B':0}
+        self.agg=0
         self.datapaths = {}
         self.state = {}
         self.unrolled_state = [0]*45
@@ -24,6 +26,7 @@ class SimpleMonitor13(simple_switch_13.SimpleSwitch13):
         self.init_thread = hub.spawn(self._monitor)
         self.attack_count = 0
         self.benign_count = 0
+        self.lambd=0.9
             
     @set_ev_cls(ofp_event.EventOFPStateChange,[MAIN_DISPATCHER, DEAD_DISPATCHER])
     def _state_change_handler(self, ev):
@@ -71,10 +74,10 @@ class SimpleMonitor13(simple_switch_13.SimpleSwitch13):
     def aggregate_stats_reply_handler(self, ev):
         body = ev.msg.body
 
-        self.logger.info('AggregateStats: packet_count=%d byte_count=%d '
-                        'flow_count=%d',
-                        body.packet_count, body.byte_count,
-                        body.flow_count)
+        temp=body.packet_count
+        self.packet_count['A']=temp-self.agg
+        self.agg=temp
+        self.packet_count['B']=self.unrolled_state[42]-self.packet_count['A']
 
 
     @set_ev_cls(ofp_event.EventOFPFlowStatsReply, MAIN_DISPATCHER)
@@ -112,7 +115,7 @@ class SimpleMonitor13(simple_switch_13.SimpleSwitch13):
             temp.append(str(stat.tx_packets))
             temp.append(str(stat.tx_bytes))
             self.state[ev.msg.datapath.id][0][stat.port_no]=temp
-
+        self.preprocess_state()
 
     def preprocess_state(self):
         next_unrolled_state = []
@@ -142,7 +145,9 @@ class SimpleMonitor13(simple_switch_13.SimpleSwitch13):
         # print(next_unrolled_state)
         # self.print_state(next_unrolled_state)
 
-
+    def reward(self):
+        return 
+        
     def print_state(self, unrolled_state):
         # print("printing unrolled_state:")
         for i in range(0,3):
@@ -151,42 +156,10 @@ class SimpleMonitor13(simple_switch_13.SimpleSwitch13):
                 print(unrolled_state[15*i+j], end = " ")
             # print("\n")
 
-    # @set_ev_cls(ofp_event.EventOFPPacketIn, MAIN_DISPATCHER)
-    # def packet_handler(self, ev):
-
-    #     victim_dpid = 3
-    #     victim_ip = '10.0.0.4'
-
-    #     msg = ev.msg
-    #     datapath = msg.datapath
-    #     ofproto = datapath.ofproto
-    #     parser = datapath.ofproto_parser
-    #     in_port = msg.match['in_port']
-
-    #     pkt = packet.Packet(msg.data)
-    #     eth = pkt.get_protocols(ethernet.ethernet)[0]
-    #     ip_list = pkt.get_protocols(ipv4.ipv4)
-
-    #     if(len(ip_list) == 0):
-    #         return
-    #     ip = ip_list[0]
-    #     ip_dst = ip.dst
-    #     ip_src = ip.src
-
-
-    #     if eth.ethertype == ether_types.ETH_TYPE_LLDP:
-    #         # ignore lldp packet
-    #         return
-
-    #     dst = eth.dst
-    #     src = eth.src
-
-    #     if(ip_dst == '10.0.0.4' and ip_src == '10.1.1.1'):
-    #         self.attack_count += 1
-    #     elif(ip_dst == '10.0.0.4'):
-    #         self.benign_count += 1
-
-    #     # if(self.attack_count % 1000 == 0):
-    #         # print(self.benign_count)
-    #         # print(self.attack_count)
-    #         # print("*")
+    def train(self):
+        agent=Agent()
+        batch_size = 32
+        episode_count=5
+        for e in range(episode_count+1):
+            print("episode "+ str(e))
+            self.get_state()
