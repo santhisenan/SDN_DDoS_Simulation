@@ -33,7 +33,7 @@ for i in range(episode_count):
 
     benign_host_id = random.choice([i for i in range(0, no_of_hosts - 2) if i not in [attacking_host_id]])
     benign_host = net.hosts[benign_host_id]
-
+    print("host" + str(attacking_host_id) + " is attacking and host" + str(benign_host_id) + " is sending normal requests")
     t1 = threading.Thread(target=ddos_benign, args=(benign_host,))
     t2 = threading.Thread(target=ddos_flood, args=(attacking_host,)) 
  

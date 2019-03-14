@@ -23,6 +23,7 @@ class SimpleMonitor13(simple_switch_13.SimpleSwitch13):
         self.datapaths = {}
         self.state = {}
         self.unrolled_state = [0]*45
+        self.unrolled_state_diff = [0]*45
         self.topo_data = {'no_switch': 3, 'no_of_ports_per_switch': 3}
         self.init_thread = hub.spawn(self._monitor)
         self.attack_count = 0
@@ -43,16 +44,17 @@ class SimpleMonitor13(simple_switch_13.SimpleSwitch13):
                 del self.datapaths[datapath.id]
 
     def _monitor(self):
-        hub.sleep(10)
-        while True:   
-            self.train()
+        hub.sleep(10)  
+        # self.train()
+        while True:
+            self.get_state()
+            hub.sleep(3)
             # self.preprocess_state()
 
     def get_state(self):
         for dp in self.datapaths.values():
                 self._request_stats(dp)
-                if dp.id == 3: 
-                    self.send_aggregate_stats_request(dp) 
+                
 
     def _request_stats(self, datapath):
         self.logger.debug('send stats request: %016x', datapath.id)
@@ -77,8 +79,15 @@ class SimpleMonitor13(simple_switch_13.SimpleSwitch13):
         temp=body.packet_count
         self.packet_count['A']=temp-self.agg
         self.agg=temp
-        self.packet_count['B']=self.unrolled_state[42]-self.packet_count['A']
-        self.calc_reward
+        self.packet_count['B']=self.unrolled_state_diff[42]-self.packet_count['A']
+        self.packet_count['T'] = self.packet_count['A'] + self.packet_count['B']
+        # self.calc_reward()
+        print("*")
+        print(self.packet_count['A'])
+        print(self.packet_count['B'])
+        print(self.packet_count['T'])
+        print(self.unrolled_state_diff)
+
 
 
     @set_ev_cls(ofp_event.EventOFPFlowStatsReply, MAIN_DISPATCHER)
@@ -96,11 +105,11 @@ class SimpleMonitor13(simple_switch_13.SimpleSwitch13):
             if len(self.state[ev.msg.datapath.id]) == 1:
                 self.state[ev.msg.datapath.id].append(stat.packet_count)
                 self.state[ev.msg.datapath.id].append(stat.byte_count)
-                self.state[ev.msg.datapath.id].append(stat.duration_nsec)
+                self.state[ev.msg.datapath.id].append(stat.duration_sec)
             else:
                 self.state[ev.msg.datapath.id][1] = stat.packet_count
                 self.state[ev.msg.datapath.id][2] = stat.byte_count
-                self.state[ev.msg.datapath.id][3] = stat.duration_nsec
+                self.state[ev.msg.datapath.id][3] = stat.duration_sec
 
             req = parser.OFPPortStatsRequest(ev.msg.datapath, 0,stat.instructions[0].actions[0].port )
             ev.msg.datapath.send_msg(req)
@@ -116,41 +125,46 @@ class SimpleMonitor13(simple_switch_13.SimpleSwitch13):
             temp.append(str(stat.tx_packets))
             temp.append(str(stat.tx_bytes))
             self.state[ev.msg.datapath.id][0][stat.port_no]=temp
-        self.preprocess_state()
-
-    def preprocess_state(self):
+        # if  ev.msg.datapath.id == 3: #call preprocess_state only after all switches is iterated
+        self.preprocess_state(ev.msg.datapath.id)
+    def preprocess_state(self, dpid):
         next_unrolled_state = []
         for key in self.state:
-            switch_data = self.state[key]
-            # print("Length of switch data:" + str(len(switch_data)))
-            port_data, packet_count, byte_count, duration_nsec = switch_data[0], switch_data[1], switch_data[2], switch_data[3]
-            
-            for port in range(1, 1+self.topo_data['no_of_ports_per_switch']):
-                if port in port_data:
-                    for val in port_data[port]:
-                        next_unrolled_state.append(val) 
-                else :
-                    for i in range(0,4):
-                        next_unrolled_state.append(0) 
-            next_unrolled_state.append(packet_count)
-            next_unrolled_state.append(byte_count)
-            next_unrolled_state.append(duration_nsec)
+            if(self.state[key]):
+                switch_data = self.state[key]
+                # print("Length of switch data:" + str(len(switch_data)))
+                port_data, packet_count, byte_count, duration_sec = switch_data[0], switch_data[1], switch_data[2], switch_data[3]
+                
+                for port in range(1, 1+self.topo_data['no_of_ports_per_switch']):
+                    if port in port_data:
+                        for val in port_data[port]:
+                            next_unrolled_state.append(val) 
+                    else :
+                        for i in range(0,4):
+                            next_unrolled_state.append(0) 
+                next_unrolled_state.append(packet_count)
+                next_unrolled_state.append(byte_count)
+                next_unrolled_state.append(duration_sec)
 
         
-             
-        next_unrolled_state= list(map(int, next_unrolled_state))
-        temp=next_unrolled_state
-        for i in range (0,45):
-            next_unrolled_state[i]=next_unrolled_state[i]-self.unrolled_state[i]
-        self.unrolled_state=temp
-        self.calc_reward()
-        # print(next_unrolled_state)
+        if(len(next_unrolled_state)):     
+            next_unrolled_state= list(map(int, next_unrolled_state))
+            temp=next_unrolled_state
+            for i in range (0,45):
+                next_unrolled_state[i]=next_unrolled_state[i]-self.unrolled_state[i]
+            self.unrolled_state=temp
+        self.unrolled_state_diff= next_unrolled_state   
+
+        if dpid == 3: 
+            self.send_aggregate_stats_request(self.datapaths[dpid]) 
+        # print(self.unrolled_state_diff)
         # self.print_state(next_unrolled_state)
 
     def calc_reward(self):
         pa=self.packet_count['A']/self.packet_count['T']
         pb=self.packet_count['B']/self.packet_count['T']
         self.reward= self.lambd*pb+(1-self.lambd)*(1-pa)
+        print(self.reward)
         
     # def print_state(self, unrolled_state):
     #     # print("printing unrolled_state:")
@@ -180,11 +194,11 @@ class SimpleMonitor13(simple_switch_13.SimpleSwitch13):
         for e in range(episode_count+1):
             print("episode "+ str(e))
             self.get_state()
-            temp_state=self.unrolled_state
+            temp_state=self.unrolled_state_diff
             for t in range(10):
-                action=agent.act(self.unrolled_state)
+                action=agent.act(self.unrolled_state_diff)
                 self.get_state()
-                agent.memory.append((temp_state, action, self.reward, self.unrolled_state))
+                agent.memory.append((temp_state, action, self.reward, self.unrolled_state_diff))
                 if len(agent.memory) > batch_size:
                     agent.expReplay(batch_size)
 
