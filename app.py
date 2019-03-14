@@ -152,13 +152,13 @@ class SimpleMonitor13(simple_switch_13.SimpleSwitch13):
         pb=self.packet_count['B']/self.packet_count['T']
         self.reward= self.lambd*pb+(1-self.lambd)*(1-pa)
         
-    def print_state(self, unrolled_state):
-        # print("printing unrolled_state:")
-        for i in range(0,3):
-            # print("Switch "+ str(i+1))
-            for j in range(15):
-                print(unrolled_state[15*i+j], end = " ")
-            # print("\n")
+    # def print_state(self, unrolled_state):
+    #     # print("printing unrolled_state:")
+    #     for i in range(0,3):
+    #         # print("Switch "+ str(i+1))
+    #         for j in range(15):
+    #             print(unrolled_state[15*i+j], end = " ")
+    #         # print("\n")
     def execute(self,action):
         n=np.argmax(action)
         binary='{0:02b}'.format(n)
