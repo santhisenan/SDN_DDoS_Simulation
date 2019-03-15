@@ -25,6 +25,7 @@ class TrafficMonitor(simple_switch_13.SimpleSwitch13):
         self.updated_port_count = 0
         self.unrolled_state = []
         self.input_state = []
+        self.count =1
 
     # TODO:
     # get_state()
@@ -71,35 +72,56 @@ class TrafficMonitor(simple_switch_13.SimpleSwitch13):
     def send_aggregate_stats_request(self, datapath):
         ofp = datapath.ofproto
         ofp_parser = datapath.ofproto_parser
-
         cookie = cookie_mask = 0
         match = ofp_parser.OFPMatch()
+        self.count=1
         req = ofp_parser.OFPAggregateStatsRequest(datapath, 0,ofp.OFPTT_ALL,ofp.OFPP_ANY,ofp.OFPG_ANY,cookie, cookie_mask,match)
         datapath.send_msg(req)
+        # if(datapath.id==3):
+        #     self.calc_reward(datapath)
 
-    @set_ev_cls(ofp_event.EventOFPAggregateStatsReply, MAIN_DISPATCHER)
-    def aggregate_stats_reply_handler(self, ev):
-        body = ev.msg.body
-        datapath = ev.msg.datapath
-
-        print(ev.msg)
-        
-        if len(self.state[datapath.id]):
-            self.state[datapath.id][1] = body.packet_count
-            self.state[datapath.id][2] = body.byte_count
-            self.state[datapath.id][3] = body.flow_count
-        else:
-            self.state[datapath.id].append({})
-            self.state[datapath.id].append(body.packet_count)
-            self.state[datapath.id].append(body.byte_count)
-            self.state[datapath.id].append(body.flow_count)
-
+    def calc_reward(self,datapath):
+        self.count=0
         ofp = datapath.ofproto
         ofp_parser = datapath.ofproto_parser
-        for port_no in range(1, self.network_info["no_of_ports_per_switch"] + 1):
-            req = ofp_parser.OFPPortStatsRequest(datapath, 0, port_no)
-            datapath.send_msg(req)
-            self.updated_port_count += 1
+        cookie = cookie_mask = 0
+        match = ofp_parser.OFPMatch()
+        match = ofp_parser.OFPMatch({"ipv4_src": '10.1.1.1', "ipv4_dst": '10.0.0.4'})
+        req = ofp_parser.OFPAggregateStatsRequest(datapath, 0,ofp.OFPTT_ALL,ofp.OFPP_ANY,ofp.OFPG_ANY,cookie, cookie_mask, match)
+        datapath.send_msg(req)
+        
+    @set_ev_cls(ofp_event.EventOFPAggregateStatsReply, MAIN_DISPATCHER)
+    def aggregate_stats_reply_handler(self, ev):
+        print("/")
+        if self.count==1:
+            body = ev.msg.body
+            datapath = ev.msg.datapath
+            print("*")
+            if len(self.state[datapath.id]):
+                self.state[datapath.id][1] = body.packet_count
+                self.state[datapath.id][2] = body.byte_count
+                self.state[datapath.id][3] = body.flow_count
+            else:
+                self.state[datapath.id].append({})
+                self.state[datapath.id].append(body.packet_count)
+                self.state[datapath.id].append(body.byte_count)
+                self.state[datapath.id].append(body.flow_count)
+
+            ofp = datapath.ofproto
+            ofp_parser = datapath.ofproto_parser
+            for port_no in range(1, self.network_info["no_of_ports_per_switch"] + 1):
+                req = ofp_parser.OFPPortStatsRequest(datapath, 0, port_no)
+                datapath.send_msg(req)
+                self.updated_port_count += 1
+    
+    # @set_ev_cls(ofp_event.EventOFPAggregateStatsReply, MAIN_DISPATCHER)
+    # def aggregate_stats_reply_handler(self,ev):
+    #     print("+")
+    #     if self.count==0:
+    #         body = ev.msg.body
+    #         datapath = ev.msg.datapath
+    #         print(datapath.id)
+
 
     @set_ev_cls(ofp_event.EventOFPPortStatsReply, MAIN_DISPATCHER)
     def _port_stats_reply_handler(self, ev):
