@@ -20,6 +20,7 @@ from ryu.controller.handler import set_ev_cls
 from ryu.ofproto import ofproto_v1_3
 from ryu.lib.packet import packet
 from ryu.lib.packet import ethernet
+from ryu.lib.packet import ipv4
 from ryu.lib.packet import ether_types
 
 
@@ -39,7 +40,7 @@ class SimpleSwitch13(app_manager.RyuApp):
         # install table-miss flow entry
         #
         # We specify NO BUFFER to max_len of the output action due to
-        # OVS bug. At this moment, if we specify a lesser number, e.g.,
+        # OVS bug. At this moment, if we specify a lesser number, e.g.,ethernet.ethernet
         # 128, OVS will send Packet-In with invalid buffer_id and
         # truncated packet data. In that case, we cannot output packets
         # correctly.  The bug has been fixed in OVS v2.1.0.
@@ -64,9 +65,11 @@ class SimpleSwitch13(app_manager.RyuApp):
         datapath.send_msg(mod)
 
     @set_ev_cls(ofp_event.EventOFPPacketIn, MAIN_DISPATCHER)
+
     def _packet_in_handler(self, ev):
         # If you hit this you might want to increase
         # the "miss_send_length" of your switch
+
         if ev.msg.msg_len < ev.msg.total_len:
             self.logger.debug("packet truncated: only %s of %s bytes",
                               ev.msg.msg_len, ev.msg.total_len)
@@ -79,11 +82,29 @@ class SimpleSwitch13(app_manager.RyuApp):
         pkt = packet.Packet(msg.data)
         eth = pkt.get_protocols(ethernet.ethernet)[0]
 
+        # for p in pkt.protocols:
+        #     print (str(p))
+        # print("***********")
+        # print(pkt)
+
+        ip = pkt.get_protocol(ipv4.ipv4)
+
         if eth.ethertype == ether_types.ETH_TYPE_LLDP:
             # ignore lldp packet
             return
+        
+        # print(eth.ethertype)
+
         dst = eth.dst
         src = eth.src
+
+        dst_ip = ""
+        src_ip = ""
+        if(ip):
+            dst_ip = ip.dst
+            src_ip = ip.src
+    
+        #     )
 
         dpid = datapath.id
         self.mac_to_port.setdefault(dpid, {})
@@ -98,11 +119,15 @@ class SimpleSwitch13(app_manager.RyuApp):
         else:
             out_port = ofproto.OFPP_FLOOD
 
+
         actions = [parser.OFPActionOutput(out_port)]
 
         # install a flow to avoid packet_in next time
         if out_port != ofproto.OFPP_FLOOD:
-            match = parser.OFPMatch(in_port=in_port, eth_dst=dst, eth_src=src)
+            if(ip):
+                match = parser.OFPMatch(in_port=in_port, eth_dst=dst, eth_src=src, eth_type = 0x0800, ipv4_dst = dst_ip, ipv4_src = src_ip)
+            else :
+                match = parser.OFPMatch(in_port=in_port, eth_dst=dst, eth_src=src)
             # verify if we have a valid buffer_id, if yes avoid to send both
             # flow_mod & packet_out
             if msg.buffer_id != ofproto.OFP_NO_BUFFER:
@@ -115,5 +140,6 @@ class SimpleSwitch13(app_manager.RyuApp):
             data = msg.data
 
         out = parser.OFPPacketOut(datapath=datapath, buffer_id=msg.buffer_id,
-                                  in_port=in_port, actions=actions, data=data)
+                                in_port=in_port, actions=actions, data=data)
         datapath.send_msg(out)
+
