@@ -57,7 +57,12 @@ class TrafficMonitor(simple_switch_13.SimpleSwitch13):
         hub.sleep(10)
         while True:
             self.get_state()
-            hub.sleep(3)
+            hub.sleep(2)
+            self.update_attack_packet_count(self.datapaths[3])
+            hub.sleep(2)
+            self.format_state()
+            self.add_meter(self.datapaths[3])
+            
 
     # Request statistics associated with each switch (dp)
     def get_state(self):
@@ -79,8 +84,10 @@ class TrafficMonitor(simple_switch_13.SimpleSwitch13):
         byte_count_n = 0
         flow_count_n = 0
 
-        for stat in sorted([flow for flow in body if flow.priority == 1],
-                key=lambda flow: (flow.match['in_port'], flow.match['eth_dst'])):
+        # for stat in sorted([flow for flow in body if flow.priority == 1],
+        #         key=lambda flow: (flow.match['in_port'], flow.match['eth_dst'])):
+        for stat in ([flow for flow in body ]):
+            print(str(stat))
             flow_count_n += 1
             packet_count_n += stat.packet_count
             byte_count_n += stat.byte_count
@@ -95,13 +102,8 @@ class TrafficMonitor(simple_switch_13.SimpleSwitch13):
             self.state[datapath.id][2] = byte_count_n
             self.state[datapath.id][3] = flow_count_n
 
-        self.packet_count[datapath.id] = packet_count_n
-        # print("Total packet count ")
-        # print(str(self.packet_count))
-        self.update_attack_packet_count(datapath)
-        # if(datapath.id == 3):
-            # self.packet_count_dp_3 = packet_count_n
-            # self.get_reward(datapath)
+        if(datapath.id == 3):
+            self.packet_count[datapath.id] = packet_count_n
         
         for port_no in range(1, self.network_info["no_of_ports_per_switch"] + 1):
             req = parser.OFPPortStatsRequest(datapath, 0, port_no)
@@ -119,9 +121,6 @@ class TrafficMonitor(simple_switch_13.SimpleSwitch13):
             temp.append(str(stat.tx_packets))
             temp.append(str(stat.tx_bytes))
             self.state[datapath.id][0][stat.port_no] = temp
-        
-        self.get_reward(datapath)
-        self.format_state()
 
     def format_state(self):
         curr_unrolled_state = []
@@ -148,7 +147,7 @@ class TrafficMonitor(simple_switch_13.SimpleSwitch13):
             curr_unrolled_state = list(map(int, curr_unrolled_state))           
             iter_count = self.network_info['no_of_switches']*(self.network_info['no_of_ports_per_switch'] * 4 + 3)
 
-            if(len(self.unrolled_state)):
+            if(len(self.unrolled_state) != 0):
                 prev_state = self.unrolled_state
             else:
                 prev_state = [0]*iter_count
@@ -159,13 +158,12 @@ class TrafficMonitor(simple_switch_13.SimpleSwitch13):
                 try:
                     temp_unrolled_state[i] = curr_unrolled_state[i] - prev_state[i]
                 except:
-                    self.logger.debug("Out of index error would have occured!")
-                    # self.logger
-                    # print()
+                    self.logger.info("Out of index error would have occured!")
+
 
             self.input_state = temp_unrolled_state
             self.unrolled_state = curr_unrolled_state
-            # print(self.input_state)
+            self.get_reward(self.datapaths[3])
 
     def update_attack_packet_count(self, datapath):
         ofp = datapath.ofproto
@@ -177,7 +175,7 @@ class TrafficMonitor(simple_switch_13.SimpleSwitch13):
         ip_dst = "10.0.0.4"
         
         match = ofp_parser.OFPMatch(eth_type = 0x0800, ipv4_src = ip_src)
-        
+        # match = ofp_parser.OFPMatch()
         req = ofp_parser.OFPAggregateStatsRequest(datapath, 0,ofp.OFPTT_ALL,ofp.OFPP_ANY,ofp.OFPG_ANY,cookie,cookie_mask, match)
         datapath.send_msg(req)
     
@@ -187,18 +185,74 @@ class TrafficMonitor(simple_switch_13.SimpleSwitch13):
         datapath = ev.msg.datapath
 
         self.attack_packet_count[datapath.id] = body.packet_count
-        # print("Attack packet count ")
-        # print(str(self.attack_packet_count))
-        # attack_packet_count = body.packet_count
-        # benign_packet_count = self.packet_count_dp_3 - attack_packet_count
-
-        # print("Attack " + str(attack_packet_count) +  " Benign " + str(benign_packet_count))
-        # self.reward = self.lambd * benign_packet_count + (1 - self.lambd) * attack_packet_count
 
     def get_reward(self, datapath):
+        # self.send_meter_stats_request(datapath)
         packets_in_network = sum(self.packet_count.values())
         attack_packets_in_network = sum(self.attack_packet_count.values())
         try:
-            print("Reward = " + str(float(attack_packets_in_network/packets_in_network)))
-        except:
             pass
+            # print("Reward = " + str(self.attack_packet_count[3]) + " " + str(self.packet_count[3]))
+        except:
+            print("Some error while calculating reward!")
+
+    def add_meter(self, datapath):
+        # datapath = ev.msg.datapath
+        ofproto = datapath.ofproto
+        parser = datapath.ofproto_parser
+        
+        # bands = [parser.OFPMeterBandDrop(type_=ofproto.OFPMBT_DROP, len_=0, rate=100)]
+
+        # req=parser.OFPMeterMod(datapath=datapath, command=ofproto.OFPMC_MODIFY, flags=ofproto.OFPMF_PKTPS, meter_id=1, bands=bands)
+        # print(str(req))
+        # datapath.send_msg(req)
+        
+        # match = parser.OFPMatch()
+        # actions = [parser.OFPActionOutput(ofproto.OFPP_CONTROLLER, ofproto.OFPCML_NO_BUFFER)]
+        
+        # inst = [parser.OFPInstructionActions(ofproto.OFPIT_APPLY_ACTIONS, actions),parser.OFPInstructionMeter(1)]
+        # # print(str(inst))
+        # mod = parser.OFPFlowMod(datapath=datapath, priority=1, match=match, instructions=inst)
+        # datapath.send_msg(mod)
+
+        self.send_meter_config_stats_request(datapath)
+
+    def send_meter_stats_request(self, datapath):
+        ofp = datapath.ofproto
+        ofp_parser = datapath.ofproto_parser
+
+        req = ofp_parser.OFPMeterStatsRequest(datapath, 0, ofp.OFPM_ALL)
+        datapath.send_msg(req)
+
+    @set_ev_cls(ofp_event.EventOFPMeterStatsReply, MAIN_DISPATCHER)
+    def meter_stats_reply_handler(self, ev):
+        meters = []
+        print(str(ev.msg.body))
+        # for stat in ev.msg.body:
+        #     meters.append('meter_id=0x%08x len=%d flow_count=%d '
+        #                 'packet_in_count=%d byte_in_count=%d '
+        #                 'duration_sec=%d duration_nsec=%d '
+        #                 'band_stats=%s' %
+        #                 (stat.meter_id, stat.len, stat.flow_count,
+        #                 stat.packet_in_count, stat.byte_in_count,
+        #                 stat.duration_sec, stat.duration_nsec,
+        #                 stat.band_stats))
+        # self.logger.info('MeterStats: %s', meters)
+
+    def send_meter_config_stats_request(self, datapath):
+        ofp = datapath.ofproto
+        ofp_parser = datapath.ofproto_parser
+
+        req = ofp_parser.OFPMeterConfigStatsRequest(datapath, 0,
+                                                    ofp.OFPM_ALL)
+        datapath.send_msg(req)        
+    
+    @set_ev_cls(ofp_event.EventOFPMeterConfigStatsReply, MAIN_DISPATCHER)
+    def meter_config_stats_reply_handler(self, ev):
+        configs = []
+        for stat in ev.msg.body:
+            configs.append('length=%d flags=0x%04x meter_id=0x%08x '
+                        'bands=%s' %
+                        (stat.length, stat.flags, stat.meter_id,
+                            stat.bands))
+        self.logger.info('MeterConfigStats: %s', configs)    

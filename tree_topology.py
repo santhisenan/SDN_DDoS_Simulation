@@ -23,7 +23,7 @@ def ddos_flood(host):
     host.cmd('killall hping3')
 
 def ddos_benign(host):
-    host.cmd('timeout ' + str(episode_length) + 's hping3 --fast '+ victim_host_ip)
+    host.cmd('timeout ' + str(episode_length) + 's hping3 '+ victim_host_ip)
     host.cmd('killall hping3')
 
 for i in range(episode_count):
