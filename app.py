@@ -73,11 +73,9 @@ class TrafficMonitor(simple_switch_13.SimpleSwitch13):
         byte_count_n = 0
         flow_count_n = 0
 
-        # for stat in sorted([flow for flow in body if flow.priority == 1],
-                # key=lambda flow: (flow.match['in_port'],
-                #                              flow.match['eth_dst'])):
-        for stat in ([flow for flow in body]):
-            # print(str(stat))
+        for stat in sorted([flow for flow in body if flow.priority == 1],
+                key=lambda flow: (flow.match['in_port'], flow.match['eth_dst'])):
+        # for stat in ([flow for flow in body]):
             flow_count_n += 1
             packet_count_n += stat.packet_count
             byte_count_n += stat.byte_count
@@ -92,9 +90,9 @@ class TrafficMonitor(simple_switch_13.SimpleSwitch13):
             self.state[datapath.id][2] = byte_count_n
             self.state[datapath.id][3] = flow_count_n
 
-        # if(datapath.id == 3):
-        self.packet_count_dp_3 = packet_count_n
-        self.get_reward(datapath)
+        if(datapath.id == 3):
+            self.packet_count_dp_3 = packet_count_n
+            self.get_reward(datapath)
             # self.send_meter_stats_request(datapath)
         
         for port_no in range(1, self.network_info["no_of_ports_per_switch"] + 1):
@@ -159,13 +157,10 @@ class TrafficMonitor(simple_switch_13.SimpleSwitch13):
             ofp_parser = datapath.ofproto_parser
             self.reward_flag = True
             cookie = cookie_mask = 0
-            ip_src = ipv4_to_bin("10.1.1.1")
-            ip_dst = ipv4_to_bin("10.0.0.4")
-            # print(ip_dst)
-            eth_dst_bin = haddr_to_bin('02:da:ed:55:20:75')
-            match = ofp_parser.OFPMatch(eth_type = 0x0800, ipv4_dst = "10.0.0.1", ipv4_src = "10.0.0.2") #\, ipv4_dst="10.0.0.4")#eth_type=0x0800, ipv4_src="10.1.1.1", ipv4_dst="10.0.0.4") 
+            ip_src = "10.1.1.1"
+            ip_dst = "10.0.0.4"
+            match = ofp_parser.OFPMatch(eth_type = 0x0800, ipv4_dst = ip_dst, ipv4_src = ip_src)
             print(match)
-            # match = ofp_parser.OFPMatch()
             # if datapath.id==3:
             req = ofp_parser.OFPAggregateStatsRequest(datapath, 0,ofp.OFPTT_ALL,ofp.OFPP_ANY,ofp.OFPG_ANY,cookie,cookie_mask, match)
             datapath.send_msg(req)
@@ -173,31 +168,5 @@ class TrafficMonitor(simple_switch_13.SimpleSwitch13):
     @set_ev_cls(ofp_event.EventOFPAggregateStatsReply, MAIN_DISPATCHER)
     def aggregate_stats_reply_handler(self, ev):
         body = ev.msg.body
-        print("body" + str(body))
-        # attack_packet_count = body.packet_count
-        # print("")
-        # print(str(attack_packet_count) + " " + str(self.packet_count_dp_3))
-
-
-    # def send_meter_stats_request(self, datapath):
-    #     ofp = datapath.ofproto
-    #     ofp_parser = datapath.ofproto_parser
-    #     print("Inside meter stats req")
-    #     req = ofp_parser.OFPMeterStatsRequest(datapath, 0, ofp.OFPM_ALL)
-    #     datapath.send_msg(req)
-    
-    # @set_ev_cls(ofp_event.EventOFPMeterStatsReply, MAIN_DISPATCHER)
-    # def meter_stats_reply_handler(self, ev):
-    #     print("Inside meter stats reply")
-    #     print("meter stats body "+  str(ev.msg.body))
-    #     meters = []
-    #     for stat in ev.msg.body:
-    #         meters.append('meter_id=0x%08x len=%d flow_count=%d '
-    #                     'packet_in_count=%d byte_in_count=%d '
-    #                     'duration_sec=%d duration_nsec=%d '
-    #                     'band_stats=%s' %
-    #                     (stat.meter_id, stat.len, stat.flow_count,
-    #                     stat.packet_in_count, stat.byte_in_count,
-    #                     stat.duration_sec, stat.duration_nsec,
-    #                     stat.band_stats))
-    #     self.logger.debug('MeterStats: %s', meters)    
+        attack_packet_count = body.packet_count
+        

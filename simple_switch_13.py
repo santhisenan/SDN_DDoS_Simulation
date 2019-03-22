@@ -82,34 +82,24 @@ class SimpleSwitch13(app_manager.RyuApp):
         pkt = packet.Packet(msg.data)
         eth = pkt.get_protocols(ethernet.ethernet)[0]
 
-        # for p in pkt.protocols:
-        #     print (str(p))
-        # print("***********")
-        # print(pkt)
-
         ip = pkt.get_protocol(ipv4.ipv4)
 
         if eth.ethertype == ether_types.ETH_TYPE_LLDP:
             # ignore lldp packet
             return
         
-        # print(eth.ethertype)
-
         dst = eth.dst
         src = eth.src
 
         dst_ip = ""
         src_ip = ""
+
         if(ip):
             dst_ip = ip.dst
             src_ip = ip.src
     
-        #     )
-
         dpid = datapath.id
         self.mac_to_port.setdefault(dpid, {})
-
-        # self.logger.info("packet in %s %s %s %s", dpid, src, dst, in_port)
 
         # learn a mac address to avoid FLOOD next time.
         self.mac_to_port[dpid][src] = in_port
@@ -124,7 +114,7 @@ class SimpleSwitch13(app_manager.RyuApp):
 
         # install a flow to avoid packet_in next time
         if out_port != ofproto.OFPP_FLOOD:
-            if(ip):
+            if(ip) :
                 match = parser.OFPMatch(in_port=in_port, eth_dst=dst, eth_src=src, eth_type = 0x0800, ipv4_dst = dst_ip, ipv4_src = src_ip)
             else :
                 match = parser.OFPMatch(in_port=in_port, eth_dst=dst, eth_src=src)

