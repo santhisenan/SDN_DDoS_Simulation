@@ -19,11 +19,11 @@ spoofed_ip = '10.1.1.1'
 def ddos_flood(host):
     # Attack the last host with IP 10.0.0.4
     # timout command is used to abort the hping3 command after the attack was performed for the specifed time
-    host.cmd('timeout ' + str(episode_length) + 's hping3 -1 --flood -a '+ spoofed_ip +' '+ victim_host_ip)
+    host.cmd('timeout ' + str(episode_length) + 's hping3 --flood -a '+ spoofed_ip +' '+ victim_host_ip)
     host.cmd('killall hping3')
 
 def ddos_benign(host):
-    host.cmd('timeout ' + str(episode_length) + 's hping3 -1 '+ victim_host_ip)
+    host.cmd('timeout ' + str(episode_length) + 's hping3 --fast '+ victim_host_ip)
     host.cmd('killall hping3')
 
 for i in range(episode_count):

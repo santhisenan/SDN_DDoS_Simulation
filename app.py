@@ -24,7 +24,11 @@ class TrafficMonitor(simple_switch_13.SimpleSwitch13):
         self.unrolled_state = []
         self.input_state = []
         
+        self.packet_count = {}
+        self.attack_packet_count = {}
+        
         self.reward = 0.0
+        self.lambd = 0.9
         self.packet_count_dp_3 = 0
 
 
@@ -39,10 +43,14 @@ class TrafficMonitor(simple_switch_13.SimpleSwitch13):
                 self.logger.debug('register datapath: %016x', datapath.id)
                 self.state[datapath.id]=[]
                 self.datapaths[datapath.id] = datapath
+                self.packet_count[datapath.id] = 0
+                self.attack_packet_count[datapath.id] = 0
         elif ev.state == DEAD_DISPATCHER:
             if datapath.id in self.datapaths:
                 self.logger.debug('unregister datapath: %016x', datapath.id)
                 del self.datapaths[datapath.id]
+                del self.packet_count[datapath.id]
+                del self.attack_packet_count[datapath.id]
 
     def _monitor(self):
         print("Initializing...")
@@ -56,8 +64,6 @@ class TrafficMonitor(simple_switch_13.SimpleSwitch13):
         for dp in self.datapaths.values():
             self.send_flow_stats_request(dp)
             
-        # self.format_state()
-
     def send_flow_stats_request(self, datapath):
         parser = datapath.ofproto_parser
         req = parser.OFPFlowStatsRequest(datapath)
@@ -75,7 +81,6 @@ class TrafficMonitor(simple_switch_13.SimpleSwitch13):
 
         for stat in sorted([flow for flow in body if flow.priority == 1],
                 key=lambda flow: (flow.match['in_port'], flow.match['eth_dst'])):
-        # for stat in ([flow for flow in body]):
             flow_count_n += 1
             packet_count_n += stat.packet_count
             byte_count_n += stat.byte_count
@@ -90,10 +95,13 @@ class TrafficMonitor(simple_switch_13.SimpleSwitch13):
             self.state[datapath.id][2] = byte_count_n
             self.state[datapath.id][3] = flow_count_n
 
-        if(datapath.id == 3):
-            self.packet_count_dp_3 = packet_count_n
-            self.get_reward(datapath)
-            # self.send_meter_stats_request(datapath)
+        self.packet_count[datapath.id] = packet_count_n
+        # print("Total packet count ")
+        # print(str(self.packet_count))
+        self.update_attack_packet_count(datapath)
+        # if(datapath.id == 3):
+            # self.packet_count_dp_3 = packet_count_n
+            # self.get_reward(datapath)
         
         for port_no in range(1, self.network_info["no_of_ports_per_switch"] + 1):
             req = parser.OFPPortStatsRequest(datapath, 0, port_no)
@@ -111,6 +119,9 @@ class TrafficMonitor(simple_switch_13.SimpleSwitch13):
             temp.append(str(stat.tx_packets))
             temp.append(str(stat.tx_bytes))
             self.state[datapath.id][0][stat.port_no] = temp
+        
+        self.get_reward(datapath)
+        self.format_state()
 
     def format_state(self):
         curr_unrolled_state = []
@@ -133,7 +144,7 @@ class TrafficMonitor(simple_switch_13.SimpleSwitch13):
                 curr_unrolled_state.append(flow_count)
         
         
-        if(len(curr_unrolled_state)):
+        if(len(curr_unrolled_state) != 0):
             curr_unrolled_state = list(map(int, curr_unrolled_state))           
             iter_count = self.network_info['no_of_switches']*(self.network_info['no_of_ports_per_switch'] * 4 + 3)
 
@@ -145,28 +156,49 @@ class TrafficMonitor(simple_switch_13.SimpleSwitch13):
             temp_unrolled_state = [0]*iter_count
 
             for i in range(iter_count):
-                if(curr_unrolled_state[i] and prev_state[i]):
+                try:
                     temp_unrolled_state[i] = curr_unrolled_state[i] - prev_state[i]
+                except:
+                    self.logger.debug("Out of index error would have occured!")
+                    # self.logger
+                    # print()
 
             self.input_state = temp_unrolled_state
             self.unrolled_state = curr_unrolled_state
             # print(self.input_state)
 
-    def get_reward(self, datapath):
-            ofp = datapath.ofproto
-            ofp_parser = datapath.ofproto_parser
-            self.reward_flag = True
-            cookie = cookie_mask = 0
-            ip_src = "10.1.1.1"
-            ip_dst = "10.0.0.4"
-            match = ofp_parser.OFPMatch(eth_type = 0x0800, ipv4_dst = ip_dst, ipv4_src = ip_src)
-            print(match)
-            # if datapath.id==3:
-            req = ofp_parser.OFPAggregateStatsRequest(datapath, 0,ofp.OFPTT_ALL,ofp.OFPP_ANY,ofp.OFPG_ANY,cookie,cookie_mask, match)
-            datapath.send_msg(req)
+    def update_attack_packet_count(self, datapath):
+        ofp = datapath.ofproto
+        ofp_parser = datapath.ofproto_parser
+        self.reward_flag = True
+        cookie = cookie_mask = 0
+
+        ip_src = "10.1.1.1"
+        ip_dst = "10.0.0.4"
+        
+        match = ofp_parser.OFPMatch(eth_type = 0x0800, ipv4_src = ip_src)
+        
+        req = ofp_parser.OFPAggregateStatsRequest(datapath, 0,ofp.OFPTT_ALL,ofp.OFPP_ANY,ofp.OFPG_ANY,cookie,cookie_mask, match)
+        datapath.send_msg(req)
     
     @set_ev_cls(ofp_event.EventOFPAggregateStatsReply, MAIN_DISPATCHER)
     def aggregate_stats_reply_handler(self, ev):
         body = ev.msg.body
-        attack_packet_count = body.packet_count
-        
+        datapath = ev.msg.datapath
+
+        self.attack_packet_count[datapath.id] = body.packet_count
+        # print("Attack packet count ")
+        # print(str(self.attack_packet_count))
+        # attack_packet_count = body.packet_count
+        # benign_packet_count = self.packet_count_dp_3 - attack_packet_count
+
+        # print("Attack " + str(attack_packet_count) +  " Benign " + str(benign_packet_count))
+        # self.reward = self.lambd * benign_packet_count + (1 - self.lambd) * attack_packet_count
+
+    def get_reward(self, datapath):
+        packets_in_network = sum(self.packet_count.values())
+        attack_packets_in_network = sum(self.attack_packet_count.values())
+        try:
+            print("Reward = " + str(float(attack_packets_in_network/packets_in_network)))
+        except:
+            pass
