@@ -29,7 +29,7 @@ class SimpleSwitch13(app_manager.RyuApp):
         self.add_flow(datapath, 0, match, actions, meter=None)
 
         bands = []
-        dropband = parser.OFPMeterBandDrop(rate=200, burst_size=0)
+        dropband = parser.OFPMeterBandDrop(rate=200, burst_size=0) #?
         bands.append(dropband)
         request = parser.OFPMeterMod(datapath=datapath,
                                         command=ofproto.OFPMC_ADD,

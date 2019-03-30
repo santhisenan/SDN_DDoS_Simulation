@@ -1,13 +1,13 @@
 from mininet.net import Mininet
 from mininet.topolib import TreeTopo
-from mininet.node import Controller, OVSKernelSwitch, RemoteController
+from mininet.node import Controller, OVSKernelSwitch, RemoteController,OVSSwitch
 import time
 import random
 # from random import choice
 import threading
 
 tree_topo = TreeTopo(depth=2, fanout=2)
-net = Mininet(topo=tree_topo, controller=RemoteController)
+net = Mininet(topo=tree_topo, controller=RemoteController,switch=OVSSwitch)
 net.start()
 
 episode_count = 100
