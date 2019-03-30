@@ -23,13 +23,17 @@ class TrafficMonitor(simple_switch_13.SimpleSwitch13):
         self.updated_port_count = 0
         self.unrolled_state = []
         self.input_state = []
-
+        
         self.packet_count = {}
         self.attack_packet_count = {}
+
+        self.meter_bands = {}
 
         self.reward = 0.0
         self.lambd = 0.9
         self.packet_count_dp_3 = 0
+
+        self.agent=Agent()
 
 
     # The event handler assiciated with this decorator is called on change of state in the network
@@ -45,27 +49,32 @@ class TrafficMonitor(simple_switch_13.SimpleSwitch13):
                 self.datapaths[datapath.id] = datapath
                 self.packet_count[datapath.id] = 0
                 self.attack_packet_count[datapath.id] = 0
+                self.meter_bands[datapath.id] = 10000
         elif ev.state == DEAD_DISPATCHER:
             if datapath.id in self.datapaths:
                 self.logger.debug('unregister datapath: %016x', datapath.id)
                 del self.datapaths[datapath.id]
                 del self.packet_count[datapath.id]
                 del self.attack_packet_count[datapath.id]
+                del self.meter_bands[datapath.id]
 
     def _monitor(self):
         print("Initializing...")
         hub.sleep(10)
         while True:
-            self.get_state()
-            hub.sleep(2)
-            self.update_attack_packet_count(self.datapaths[3])
-            hub.sleep(2)
-            self.format_state()
+            self.train()
+
             # self.add_meter(self.datapaths[3])
 
+    def get_state(self):
+        self.find_state()
+        hub.sleep(2)
+        self.update_attack_packet_count(self.datapaths[3])
+        hub.sleep(2)
+        self.format_state()
 
     # Request statistics associated with each switch (dp)
-    def get_state(self):
+    def find_state(self):
         for dp in self.datapaths.values():
             self.send_flow_stats_request(dp)
 
@@ -87,7 +96,7 @@ class TrafficMonitor(simple_switch_13.SimpleSwitch13):
         # for stat in sorted([flow for flow in body if flow.priority == 1],
         #         key=lambda flow: (flow.match['in_port'], flow.match['eth_dst'])):
         for stat in ([flow for flow in body ]):
-            print(str(stat))
+            # print(str(stat))
             flow_count_n += 1
             packet_count_n += stat.packet_count
             byte_count_n += stat.byte_count
@@ -104,7 +113,7 @@ class TrafficMonitor(simple_switch_13.SimpleSwitch13):
 
         if(datapath.id == 3):
             self.packet_count[datapath.id] = packet_count_n
-            self.add_meter_band(datapath, 200)
+            # self.add_meter_band(datapath, 10000)
 
         for port_no in range(1, self.network_info["no_of_ports_per_switch"] + 1):
             req = parser.OFPPortStatsRequest(datapath, 0, port_no)
@@ -164,7 +173,7 @@ class TrafficMonitor(simple_switch_13.SimpleSwitch13):
 
             self.input_state = temp_unrolled_state
             self.unrolled_state = curr_unrolled_state
-            self.get_reward(self.datapaths[3])
+            # self.get_reward(self.datapaths[3])
 
     def update_attack_packet_count(self, datapath):
         ofp = datapath.ofproto
@@ -187,13 +196,13 @@ class TrafficMonitor(simple_switch_13.SimpleSwitch13):
 
         self.attack_packet_count[datapath.id] = body.packet_count
 
-    def get_reward(self, datapath):
+    def get_reward(self):
         # self.send_meter_stats_request(datapath)
         packets_in_network = sum(self.packet_count.values())
         attack_packets_in_network = sum(self.attack_packet_count.values())
         try:
-            pass
-            # print("Reward = " + str(self.attack_packet_count[3]) + " " + str(self.packet_count[3]))
+            # pass
+            print("Reward = " + str(self.attack_packet_count[3]) + " " + str(self.packet_count[3]))
         except:
             print("Some error while calculating reward!")
 
@@ -207,28 +216,73 @@ class TrafficMonitor(simple_switch_13.SimpleSwitch13):
         bands.append(dropband)
 
         #Delete meter incase it already exists (other instructions pre installed will still work)
-        request = parser.OFPMeterMod(datapath=datapath,command=ofproto.OFPMC_DELETE,flags=ofproto.OFPMF_KBPS,meter_id=1,bands=bands)
+        request = parser.OFPMeterMod(datapath=datapath,command=ofproto.OFPMC_DELETE,flags=ofproto.OFPMF_PKTPS,meter_id=1,bands=bands)
         datapath.send_msg(request)
         #Create meter
-        request = parser.OFPMeterMod(datapath=datapath,command=ofproto.OFPMC_ADD, flags=ofproto.OFPMF_KBPS,meter_id=1,bands=bands)
+        request = parser.OFPMeterMod(datapath=datapath,command=ofproto.OFPMC_ADD, flags=ofproto.OFPMF_PKTPS,meter_id=1,bands=bands)
         datapath.send_msg(request)
 
-        self.send_meter_config_stats_request(datapath)
+        # self.send_meter_config_stats_request(datapath)
+
+
+
+
+    # def send_meter_config_stats_request(self, datapath):
+    #     ofp = datapath.ofproto
+    #     ofp_parser = datapath.ofproto_parser
+
+    #     req = ofp_parser.OFPMeterConfigStatsRequest(datapath, 0, ofp.OFPM_ALL)
+    #     datapath.send_msg(req)
+
+
+    # @set_ev_cls(ofp_event.EventOFPMeterConfigStatsReply, MAIN_DISPATCHER)
+    # def meter_config_stats_reply_handler(self, ev):
+    #     configs = []
+    #     for stat in ev.msg.body:
+    #         configs.append('length=%d flags=0x%04x meter_id=0x%08x '
+    #                        'bands=%s' %
+    #                        (stat.length, stat.flags, stat.meter_id,
+    #                         stat.bands))
+    #     self.logger.info('MeterConfigStats: %s', configs)
+
+    def train(self):
+        state=self.get_state()
+        hub.sleep(3)
+        action = bin(self.agent.act(state))[2:].zfill(3)
+
+        dpid = 0
+        for i in action:
+            dpid += 1
+            if(i == '1'):
+                if(self.meter_bands[dpid] <= 1000):
+                    pass
+                else :
+                    rate_new = self.meter_bands[dpid] - 1000
+                    self.meter_bands[dpid] = rate_new
+                    self.add_meter_band(self.datapaths[dpid], rate_new)
+                    self.send_meter_config_stats_request(self.datapaths[dpid])
+
+        self.get_reward()   
+
+        # next_state=self.get_state()
+        # rew= self.get_reward()
+        # agent.memory.append((state, action, reward, next_state, done))
+    
 
     def send_meter_config_stats_request(self, datapath):
         ofp = datapath.ofproto
         ofp_parser = datapath.ofproto_parser
 
-        req = ofp_parser.OFPMeterConfigStatsRequest(datapath, 0, ofp.OFPM_ALL)
+        req = ofp_parser.OFPMeterConfigStatsRequest(datapath, 0,
+                                                ofp.OFPM_ALL)
         datapath.send_msg(req)
-
 
     @set_ev_cls(ofp_event.EventOFPMeterConfigStatsReply, MAIN_DISPATCHER)
     def meter_config_stats_reply_handler(self, ev):
         configs = []
         for stat in ev.msg.body:
             configs.append('length=%d flags=0x%04x meter_id=0x%08x '
-                           'bands=%s' %
-                           (stat.length, stat.flags, stat.meter_id,
+                        'bands=%s' %
+                        (stat.length, stat.flags, stat.meter_id,
                             stat.bands))
         self.logger.info('MeterConfigStats: %s', configs)

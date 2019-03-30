@@ -59,7 +59,7 @@ class SimpleSwitch13(app_manager.RyuApp):
                                         bands=bands)
         print("Creating new meter")
         datapath.send_msg(request)
-        self.send_meter_features_stats_request(datapath)
+        # self.send_meter_features_stats_request(datapath)
 
     def add_flow(self, datapath, priority, match, actions, buffer_id=None, meter=None):
         ofproto = datapath.ofproto
