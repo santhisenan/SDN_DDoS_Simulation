@@ -50,7 +50,7 @@ class SimpleSwitch13(app_manager.RyuApp):
         self.add_flow(datapath, 0, match, actions, meter=None)
 
         bands = []
-        dropband = parser.OFPMeterBandDrop(rate=200, burst_size=0)
+        dropband = parser.OFPMeterBandDrop(rate=200, burst_size=0) #?
         bands.append(dropband)
         request = parser.OFPMeterMod(datapath=datapath,
                                         command=ofproto.OFPMC_ADD,
@@ -101,7 +101,7 @@ class SimpleSwitch13(app_manager.RyuApp):
         if eth.ethertype == ether_types.ETH_TYPE_LLDP:
             # ignore lldp packet
             return
-        
+
         dst = eth.dst
         src = eth.src
 
@@ -111,7 +111,7 @@ class SimpleSwitch13(app_manager.RyuApp):
         if(ip):
             dst_ip = ip.dst
             src_ip = ip.src
-    
+
         dpid = datapath.id
         self.mac_to_port.setdefault(dpid, {})
 

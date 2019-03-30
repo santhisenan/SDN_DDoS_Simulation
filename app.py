@@ -87,7 +87,7 @@ class TrafficMonitor(simple_switch_13.SimpleSwitch13):
         # for stat in sorted([flow for flow in body if flow.priority == 1],
         #         key=lambda flow: (flow.match['in_port'], flow.match['eth_dst'])):
         for stat in ([flow for flow in body ]):
-            # print(str(stat))
+            print(str(stat))
             flow_count_n += 1
             packet_count_n += stat.packet_count
             byte_count_n += stat.byte_count
