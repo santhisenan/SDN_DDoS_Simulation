@@ -253,20 +253,4 @@ class TrafficMonitor(simple_switch_13.SimpleSwitch13):
         # agent.memory.append((state, action, reward, next_state, done))
     
 
-    def send_meter_config_stats_request(self, datapath):
-        ofp = datapath.ofproto
-        ofp_parser = datapath.ofproto_parser
 
-        req = ofp_parser.OFPMeterConfigStatsRequest(datapath, 0,
-                                                ofp.OFPM_ALL)
-        datapath.send_msg(req)
-
-    @set_ev_cls(ofp_event.EventOFPMeterConfigStatsReply, MAIN_DISPATCHER)
-    def meter_config_stats_reply_handler(self, ev):
-        configs = []
-        for stat in ev.msg.body:
-            configs.append('length=%d flags=0x%04x meter_id=0x%08x '
-                        'bands=%s' %
-                        (stat.length, stat.flags, stat.meter_id,
-                            stat.bands))
-        self.logger.info('MeterConfigStats: %s', configs)
