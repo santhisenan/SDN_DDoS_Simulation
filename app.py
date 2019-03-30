@@ -10,7 +10,10 @@ from ryu.lib import hub
 from ryu.lib.ip import ipv4_to_bin, ipv4_to_str
 from ryu.lib import packet
 from ryu.lib.mac import haddr_to_bin
+
 import numpy as np
+
+from logger import Logger
 
 class TrafficMonitor(simple_switch_13.SimpleSwitch13):
 
@@ -27,6 +30,8 @@ class TrafficMonitor(simple_switch_13.SimpleSwitch13):
         self.packet_count = {}
         self.attack_packet_count = {}
 
+        self.logger = new Logger()
+        
         self.reward = 0.0
         self.lambd = 0.9
         self.packet_count_dp_3 = 0
@@ -213,22 +218,5 @@ class TrafficMonitor(simple_switch_13.SimpleSwitch13):
         request = parser.OFPMeterMod(datapath=datapath,command=ofproto.OFPMC_ADD, flags=ofproto.OFPMF_KBPS,meter_id=1,bands=bands)
         datapath.send_msg(request)
 
-        self.send_meter_config_stats_request(datapath)
+        self.logger.send_meter_config_stats_request(datapath)
 
-    def send_meter_config_stats_request(self, datapath):
-        ofp = datapath.ofproto
-        ofp_parser = datapath.ofproto_parser
-
-        req = ofp_parser.OFPMeterConfigStatsRequest(datapath, 0, ofp.OFPM_ALL)
-        datapath.send_msg(req)
-
-
-    @set_ev_cls(ofp_event.EventOFPMeterConfigStatsReply, MAIN_DISPATCHER)
-    def meter_config_stats_reply_handler(self, ev):
-        configs = []
-        for stat in ev.msg.body:
-            configs.append('length=%d flags=0x%04x meter_id=0x%08x '
-                           'bands=%s' %
-                           (stat.length, stat.flags, stat.meter_id,
-                            stat.bands))
-        self.logger.info('MeterConfigStats: %s', configs)
