@@ -93,7 +93,7 @@ class TrafficMonitor(simple_switch_13.SimpleSwitch13):
         datapath = ev.datapath
         if ev.state == MAIN_DISPATCHER:
             if datapath.id not in self.datapaths:
-                self.logger.debug('register datapath: %016x', datapath.id)
+                #self.logger.debug('register datapath: %016x', datapath.id)
                 self.state[datapath.id]=[]
                 self.datapaths[datapath.id] = datapath
                 self.packet_count[datapath.id] = 0
@@ -101,7 +101,7 @@ class TrafficMonitor(simple_switch_13.SimpleSwitch13):
                 self.meter_bands[datapath.id] = 10000
         elif ev.state == DEAD_DISPATCHER:
             if datapath.id in self.datapaths:
-                self.logger.debug('unregister datapath: %016x', datapath.id)
+                #self.logger.debug('unregister datapath: %016x', datapath.id)
                 del self.datapaths[datapath.id]
                 del self.packet_count[datapath.id]
                 del self.attack_packet_count[datapath.id]
@@ -109,7 +109,7 @@ class TrafficMonitor(simple_switch_13.SimpleSwitch13):
 
     def _monitor(self):
         print("Initializing...")
-        hub.sleep(10)
+        hub.sleep(20)
         while True:
             self.main()
 
@@ -250,10 +250,10 @@ class TrafficMonitor(simple_switch_13.SimpleSwitch13):
         packets_in_network = sum(self.packet_count.values())
         attack_packets_in_network = sum(self.attack_packet_count.values())
         benign_packets_in_network = packets_in_network-attack_packets_in_network
-        self.reward = (LAMBD*(attack_packets_in_network/packets_in_network)) + ((1-LAMBD)*(benign_packets_in_network/packets_in_network))
+        self.reward = (LAMBD*(benign_packets_in_network/packets_in_network)) + ((1-LAMBD)*(attack_packets_in_network/packets_in_network))
         try:
-            # pass
-            print("Reward = " + str(self.attack_packet_count[3]) + " " + str(self.packet_count[3]))
+            pass
+            # print("Reward = " + str(self.attack_packet_count[3]) + " " + str(self.packet_count[3]))
         except:
             print("Some error while calculating reward!")
 
@@ -273,7 +273,7 @@ class TrafficMonitor(simple_switch_13.SimpleSwitch13):
         request = parser.OFPMeterMod(datapath=datapath,command=ofproto.OFPMC_ADD, flags=ofproto.OFPMF_PKTPS,meter_id=1,bands=bands)
         datapath.send_msg(request)
 
-        self.logger.send_meter_config_stats_request(datapath)
+        #self.send_meter_config_stats_request(datapath)
 
     # def train(self):
     #     state=self.get_state()
@@ -301,19 +301,19 @@ class TrafficMonitor(simple_switch_13.SimpleSwitch13):
 
     #ENV Functions starts
     def reset(self):
-        self.add_meter_band(1,MAX_BANDWIDTH)
-        self.add_meter_band(2,MAX_BANDWIDTH)
-        self.add_meter_band(3,MAX_BANDWIDTH)
+        self.add_meter_band(self.datapaths[1],MAX_BANDWIDTH)
+        self.add_meter_band(self.datapaths[2],MAX_BANDWIDTH)
+        self.add_meter_band(self.datapaths[3],MAX_BANDWIDTH)
         self.get_state()
         
     
 
     def step(self,action):
         # To return next_state, reward, done, _info
-        data_path = 1
+        dpid = 1
         for bandwidth in action:
-            self.add_meter_band(data_path,bandwidth)
-            data_path += 1
+            self.add_meter_band(self.datapaths[dpid],bandwidth)
+            dpid += 1
 
         self.get_state()
         self.get_reward()
@@ -488,8 +488,10 @@ class TrafficMonitor(simple_switch_13.SimpleSwitch13):
             for t in range(MAX_STEPS_PER_EPISODE):
                 # choose action based on deterministic policy
                 # print(state.shape)
+                state = np.asarray(state)
+                state = state.reshape(1,state.shape[0])
                 action, = sess.run(actions, 
-                    feed_dict = {state_placeholder: state[None], is_training_placeholder: False})
+                    feed_dict = {state_placeholder: state, is_training_placeholder: False})
 
                 # add temporally-correlated exploration noise to action (using an Ornstein-Uhlenbeck process)
                 # print(action_for_state)
@@ -529,9 +531,10 @@ class TrafficMonitor(simple_switch_13.SimpleSwitch13):
                     _ = sess.run(update_targets_op)
 
                 state = next_state
-                print(next_state.shape)
+                # print(next_state.shape)
                 num_steps += 1
                 num_steps_in_episode += 1
+                print(reward)
                 
                 if done: 
                     # Increment episode counter

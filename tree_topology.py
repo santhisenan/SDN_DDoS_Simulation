@@ -6,13 +6,13 @@ import random
 # from random import choice
 import threading
 
-tree_topo = TreeTopo(depth=2, fanout=2)
+tree_topo = TreeTopo(depth=3, fanout=2)
 net = Mininet(topo=tree_topo, controller=RemoteController,switch=OVSSwitch)
 net.start()
 
 episode_count = 100
 episode_length = 10
-no_of_hosts = 4
+no_of_hosts = 8
 victim_host_ip = '10.0.0.' + str(no_of_hosts)
 spoofed_ip = '10.1.1.1'
 
