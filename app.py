@@ -24,7 +24,7 @@ from actor_network import ActorNetwork as Actor
 from critic_network import CriticNetwork as Critic 
 from replay_buffer import ReplayBuffer as Memory
 
-#TODO : reset() , step() , 
+#TODO : reset() , step() 
 
 GAMMA = 0.99
 HIDDEN_1_ACTOR = 8
@@ -54,8 +54,11 @@ EXPLORATION_SIGMA = 0.2
 STATE_DIM = 45
 ACTION_DIM = 3
 OUTPUT_DIR = "output"
+
+
 MAX_BANDWIDTH = 10000
 MIN_BANDWIDTH = 0.1 * MAX_BANDWIDTH
+LAMBD = 0.9
 
 
 class TrafficMonitor(simple_switch_13.SimpleSwitch13):
@@ -246,6 +249,8 @@ class TrafficMonitor(simple_switch_13.SimpleSwitch13):
         # self.send_meter_stats_request(datapath)
         packets_in_network = sum(self.packet_count.values())
         attack_packets_in_network = sum(self.attack_packet_count.values())
+        benign_packets_in_network = packets_in_network-attack_packets_in_network
+        self.reward = (LAMBD*(attack_packets_in_network/packets_in_network)) + ((1-LAMBD)*(benign_packets_in_network/packets_in_network))
         try:
             # pass
             print("Reward = " + str(self.attack_packet_count[3]) + " " + str(self.packet_count[3]))
@@ -305,6 +310,24 @@ class TrafficMonitor(simple_switch_13.SimpleSwitch13):
 
     def step(self,action):
         # To return next_state, reward, done, _info
+        data_path = 1
+        for bandwidth in action:
+            self.add_meter_band(data_path,bandwidth)
+            data_path += 1
+
+        self.get_state()
+        self.get_reward()
+        next_state = self.input_state
+        reward = self.reward
+        done = False #TODO
+
+        return next_state,reward,done
+
+        
+
+        
+
+
 
         
 
@@ -475,7 +498,7 @@ class TrafficMonitor(simple_switch_13.SimpleSwitch13):
                 action += noise_scale*noise
 
                 # take step
-                next_state, reward, done, _info = self.step(action)
+                next_state, reward, done, = self.step(action)
                 total_reward += reward
 
                 add_to_memory((state, action, reward, next_state, 
