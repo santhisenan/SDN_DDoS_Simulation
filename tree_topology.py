@@ -16,6 +16,11 @@ no_of_hosts = 8
 victim_host_ip = '10.0.0.' + str(no_of_hosts)
 spoofed_ip = '10.1.1.1'
 
+BANDWIDTH_RATE = None
+
+with open('./bandwidth_rate.txt', 'r') as file:
+    BANDWIDTH_RATE = file.read()
+
 def ddos_flood(host):
     # Attack the last host with IP 10.0.0.4
     # timout command is used to abort the hping3 command after the attack was performed for the specifed time

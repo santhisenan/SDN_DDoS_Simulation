@@ -60,6 +60,12 @@ MAX_BANDWIDTH = 10000
 MIN_BANDWIDTH = 0.1 * MAX_BANDWIDTH
 LAMBD = 0.9
 
+BANDWIDTH_RATE = None
+
+with open('./bandwidth_rate.txt', 'r') as file:
+    BANDWIDTH_RATE = file.read()
+
+
 
 class TrafficMonitor(simple_switch_13.SimpleSwitch13):
 
@@ -81,6 +87,8 @@ class TrafficMonitor(simple_switch_13.SimpleSwitch13):
         self.reward = 0.0
         self.lambd = 0.9
         self.packet_count_dp_3 = 0
+
+        
 
         
 
@@ -137,11 +145,13 @@ class TrafficMonitor(simple_switch_13.SimpleSwitch13):
         body = ev.msg.body
         datapath = ev.msg.datapath
         parser = datapath.ofproto_parser
-
+        ofp = datapath.ofproto
+        ofp_parser = datapath.ofproto_parser
+        ip_src = "10.1.1.1"
         packet_count_n = 0
         byte_count_n = 0
         flow_count_n = 0
-
+        match = ofp_parser.OFPMatch(eth_type = 0x0800, ipv4_src = ip_src)
         # for stat in sorted([flow for flow in body if flow.priority == 1],
         #         key=lambda flow: (flow.match['in_port'], flow.match['eth_dst'])):
         for stat in ([flow for flow in body ]):
@@ -149,6 +159,13 @@ class TrafficMonitor(simple_switch_13.SimpleSwitch13):
             flow_count_n += 1
             packet_count_n += stat.packet_count
             byte_count_n += stat.byte_count
+            # if(stat.match):
+                # print(stat.match)
+            # for f in ([oxm_field for oxm_field in stat.match]):
+            #     print("*" + str(f))
+            if stat_match.__getitem__("ipv4_src") == '10.1.1.1' and datapath.id==3:
+                atck_count +=1
+        self.calc_reward(atck_count)
 
         if len(self.state[datapath.id]) == 0:
             self.state[datapath.id].append({})
@@ -168,6 +185,12 @@ class TrafficMonitor(simple_switch_13.SimpleSwitch13):
             req = parser.OFPPortStatsRequest(datapath, 0, port_no)
             datapath.send_msg(req)
 
+    def calc_reward(self, stat_match, match):
+        try:
+            print(stat_match.__getitem__("ipv4_src"))
+        except:
+            pass
+    
     @set_ev_cls(ofp_event.EventOFPPortStatsReply, MAIN_DISPATCHER)
     def _port_stats_reply_handler(self, ev):
         body = ev.msg.body
