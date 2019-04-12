@@ -6,6 +6,7 @@ import os
 from os import path
 import random
 from collections import deque
+import time
 
 from operator import attrgetter
 import simple_switch_13
@@ -83,11 +84,12 @@ class TrafficMonitor(simple_switch_13.SimpleSwitch13):
         self.attack_packet_count = {}
 
         self.meter_bands = {}
+        self.atck_count = 0
 
         self.reward = 0.0
         self.lambd = 0.9
         self.packet_count_dp_3 = 0
-
+        self.current_time = time.time()
         
 
         
@@ -126,9 +128,8 @@ class TrafficMonitor(simple_switch_13.SimpleSwitch13):
     def get_state(self):
         self.find_state()
         hub.sleep(2)
-        self.update_attack_packet_count(self.datapaths[3])
-        hub.sleep(2)
-        self.format_state()
+        # self.update_attack_packet_count(self.datapaths[3])
+        # self.format_state()
 
     # Request statistics associated with each switch (dp)
     def find_state(self):
@@ -164,8 +165,7 @@ class TrafficMonitor(simple_switch_13.SimpleSwitch13):
             # for f in ([oxm_field for oxm_field in stat.match]):
             #     print("*" + str(f))
             if stat_match.__getitem__("ipv4_src") == '10.1.1.1' and datapath.id==3:
-                atck_count +=1
-        self.calc_reward(atck_count)
+                self.atck_count +=1
 
         if len(self.state[datapath.id]) == 0:
             self.state[datapath.id].append({})
@@ -184,6 +184,8 @@ class TrafficMonitor(simple_switch_13.SimpleSwitch13):
         for port_no in range(1, self.network_info["no_of_ports_per_switch"] + 1):
             req = parser.OFPPortStatsRequest(datapath, 0, port_no)
             datapath.send_msg(req)
+        self.format_state() #TODO: Not sure where to call
+
 
     def calc_reward(self, stat_match, match):
         try:
@@ -268,17 +270,19 @@ class TrafficMonitor(simple_switch_13.SimpleSwitch13):
 
         self.attack_packet_count[datapath.id] = body.packet_count
 
-    def get_reward(self):
+    def get_reward(self,time_diff):
+        print("time" + str(time_diff))
+        print("attck count" + str(self.atck_count))
         # self.send_meter_stats_request(datapath)
-        packets_in_network = sum(self.packet_count.values())
-        attack_packets_in_network = sum(self.attack_packet_count.values())
-        benign_packets_in_network = packets_in_network-attack_packets_in_network
-        self.reward = (LAMBD*(benign_packets_in_network/packets_in_network)) + ((1-LAMBD)*(attack_packets_in_network/packets_in_network))
-        try:
-            pass
-            # print("Reward = " + str(self.attack_packet_count[3]) + " " + str(self.packet_count[3]))
-        except:
-            print("Some error while calculating reward!")
+        # packets_in_network = sum(self.packet_count.values())
+        # attack_packets_in_network = sum(self.attack_packet_count.values())
+        # benign_packets_in_network = packets_in_network-attack_packets_in_network
+        # self.reward = (LAMBD*(benign_packets_in_network/packets_in_network)) + ((1-LAMBD)*(attack_packets_in_network/packets_in_network))
+        # try:
+        #     pass
+        #     # print("Reward = " + str(self.attack_packet_count[3]) + " " + str(self.packet_count[3]))
+        # except:
+        #     print("Some error while calculating reward!")
 
     def add_meter_band(self, datapath, rate):
         # datapath = ev.msg.datapath
@@ -331,7 +335,7 @@ class TrafficMonitor(simple_switch_13.SimpleSwitch13):
         
     
 
-    def step(self,action):
+    def step(self,action,time_diff):
         # To return next_state, reward, done, _info
         dpid = 1
         for bandwidth in action:
@@ -339,7 +343,7 @@ class TrafficMonitor(simple_switch_13.SimpleSwitch13):
             dpid += 1
 
         self.get_state()
-        self.get_reward()
+        self.get_reward(time_diff)
         next_state = self.input_state
         reward = self.reward
         done = False #TODO
@@ -520,10 +524,13 @@ class TrafficMonitor(simple_switch_13.SimpleSwitch13):
                 # print(action_for_state)
                 noise = EXPLORATION_THETA*(EXPLORATION_MU - noise) + EXPLORATION_SIGMA*np.random.randn(ACTION_DIM)
                 # print(noise_scale*noise_process)
+                
                 action += noise_scale*noise
+                curr_time = time.time()
+                time_diff = curr_time - self.current_time
 
                 # take step
-                next_state, reward, done, = self.step(action)
+                next_state, reward, done, = self.step(action,time_diff)
                 total_reward += reward
 
                 add_to_memory((state, action, reward, next_state, 
@@ -558,6 +565,7 @@ class TrafficMonitor(simple_switch_13.SimpleSwitch13):
                 num_steps += 1
                 num_steps_in_episode += 1
                 print(reward)
+                self.current_time=curr_time
                 
                 if done: 
                     # Increment episode counter
