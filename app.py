@@ -19,7 +19,7 @@ from ryu.lib.ip import ipv4_to_bin, ipv4_to_str
 from ryu.lib import packet
 from ryu.lib.mac import haddr_to_bin
 
-sys.path.insert(0, '/home/musthafa/project/SDN_DDoS_Simulation/ddpg')
+sys.path.insert(0, './ddpg')
 
 from actor_network import ActorNetwork as Actor 
 from critic_network import CriticNetwork as Critic 
@@ -64,7 +64,7 @@ LAMBD = 0.9
 BANDWIDTH_RATE = None
 
 with open('./bandwidth_rate.txt', 'r') as file:
-    BANDWIDTH_RATE = file.read()
+    BANDWIDTH_RATE = float(file.read())
 
 
 
@@ -119,7 +119,7 @@ class TrafficMonitor(simple_switch_13.SimpleSwitch13):
 
     def _monitor(self):
         print("Initializing...")
-        hub.sleep(20)
+        hub.sleep(10)
         while True:
             self.main()
 
@@ -164,9 +164,16 @@ class TrafficMonitor(simple_switch_13.SimpleSwitch13):
                 # print(stat.match)
             # for f in ([oxm_field for oxm_field in stat.match]):
             #     print("*" + str(f))
-            if stat_match.__getitem__("ipv4_src") == '10.1.1.1' and datapath.id==3:
-                self.atck_count +=1
-
+            # print(stat.match)
+            try:
+                # print(stat.match.__getitem__("ipv4_src") == '10.1.1.1' and datapath.id == 7)
+                if stat.match.__getitem__("ipv4_src") == '10.1.1.1' and datapath.id == 7:
+                    print("****")
+                    self.atck_count += stat.packet_count
+                    print(self.atck_count)
+            except:
+                # print(str(e))
+                pass
         if len(self.state[datapath.id]) == 0:
             self.state[datapath.id].append({})
             self.state[datapath.id].append(packet_count_n)
@@ -177,21 +184,13 @@ class TrafficMonitor(simple_switch_13.SimpleSwitch13):
             self.state[datapath.id][2] = byte_count_n
             self.state[datapath.id][3] = flow_count_n
 
-        if(datapath.id == 3):
-            self.packet_count[datapath.id] = packet_count_n
+        self.packet_count[datapath.id] = packet_count_n
             # self.add_meter_band(datapath, 10000)
 
         for port_no in range(1, self.network_info["no_of_ports_per_switch"] + 1):
             req = parser.OFPPortStatsRequest(datapath, 0, port_no)
             datapath.send_msg(req)
         self.format_state() #TODO: Not sure where to call
-
-
-    def calc_reward(self, stat_match, match):
-        try:
-            print(stat_match.__getitem__("ipv4_src"))
-        except:
-            pass
     
     @set_ev_cls(ofp_event.EventOFPPortStatsReply, MAIN_DISPATCHER)
     def _port_stats_reply_handler(self, ev):
@@ -271,8 +270,17 @@ class TrafficMonitor(simple_switch_13.SimpleSwitch13):
         self.attack_packet_count[datapath.id] = body.packet_count
 
     def get_reward(self,time_diff):
-        print("time" + str(time_diff))
-        print("attck count" + str(self.atck_count))
+        total_attack_packet_count = BANDWIDTH_RATE * time_diff * 1000000.0
+        pa = float(self.atck_count / total_attack_packet_count)
+        pb = float((self.packet_count[7]-self.atck_count)/(100.0*time_diff))
+        print("*")
+        print(self.atck_count)
+        print(self.packet_count[7])
+        print("**")
+        self.reward = LAMBD*pb +(1-LAMBD)*(1-pa)
+        # print(self.reward)
+        
+        
         # self.send_meter_stats_request(datapath)
         # packets_in_network = sum(self.packet_count.values())
         # attack_packets_in_network = sum(self.attack_packet_count.values())
@@ -347,6 +355,7 @@ class TrafficMonitor(simple_switch_13.SimpleSwitch13):
         next_state = self.input_state
         reward = self.reward
         done = False #TODO
+        self.atck_count = 0
 
         return next_state,reward,done
 
@@ -564,7 +573,6 @@ class TrafficMonitor(simple_switch_13.SimpleSwitch13):
                 # print(next_state.shape)
                 num_steps += 1
                 num_steps_in_episode += 1
-                print(reward)
                 self.current_time=curr_time
                 
                 if done: 
