@@ -1,9 +1,8 @@
 from mininet.net import Mininet
 from mininet.topolib import TreeTopo
-from mininet.node import Controller, OVSKernelSwitch, RemoteController,OVSSwitch
-import time
+from mininet.node import Controller, RemoteController,OVSSwitch
+
 import random
-# from random import choice
 import threading
 
 tree_topo = TreeTopo(depth=3, fanout=2)
@@ -16,11 +15,6 @@ no_of_hosts = 8
 victim_host_ip = '10.0.0.' + str(no_of_hosts)
 spoofed_ip = '10.1.1.1'
 
-BANDWIDTH_RATE = None
-
-with open('./bandwidth_rate.txt', 'r') as file:
-    BANDWIDTH_RATE = float(file.read())
-time_delay = float(1/BANDWIDTH_RATE)
 
 def ddos_flood(host):
     # Attack the last host with IP 10.0.0.4
@@ -28,9 +22,11 @@ def ddos_flood(host):
     host.cmd('timeout ' + str(episode_length) + 's hping3 --flood ' + ' -a '+ spoofed_ip +' '+ victim_host_ip)
     host.cmd('killall hping3')
 
+
 def ddos_benign(host):
     host.cmd('timeout ' + str(episode_length) + 's hping3 ' + victim_host_ip)
     host.cmd('killall hping3')
+
 
 for i in range(episode_count):
     print("Episode "+str(i))
@@ -45,9 +41,9 @@ for i in range(episode_count):
  
     t1.start()
     t2.start()
-    # ddos_flood(attacking_host)
-
+    
     t1.join()
     t2.join()
+
 
 net.stop()
