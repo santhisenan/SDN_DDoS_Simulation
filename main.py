@@ -1,9 +1,7 @@
-from critic_network import CriticNetwork as Critic
-from actor_network import ActorNetwork as Actor
-from replay_buffer import ReplayBuffer as Memory
 import numpy as np
 import tensorflow as tf
 import sys
+from os import path
 import os
 import random
 from collections import deque
@@ -21,6 +19,10 @@ from ryu.lib import packet
 from ryu.lib.mac import haddr_to_bin
 
 sys.path.insert(0, './ddpg')
+
+from actor_network import ActorNetwork as Actor 
+from critic_network import CriticNetwork as Critic 
+from replay_buffer import ReplayBuffer as Memory
 
 
 GAMMA = 0.99
@@ -51,7 +53,7 @@ EXPLORATION_SIGMA = 0.2
 STATE_DIM = 105  # TODO
 ACTION_DIM = 7  # TODO
 NUMBER_OF_PORTS_PER_SWITCH = 3  # TODO
-NUMBER_OF_SWITCHES = 7  # TODO
+NUMBER_OF_SWITCHES  = 7  # TODO
 MAX_BANDWIDTH = 10000  # TODO
 MIN_BANDWIDTH = 0.1 * MAX_BANDWIDTH
 LAMBD = 0.9
@@ -100,15 +102,15 @@ class TrafficMonitor(simple_switch_13.SimpleSwitch13):
     def _monitor(self):
         print("Initializing...")
         hub.sleep(10)
-        while True:
-            self.main()
+        # while True:
+        self.main()
 
     def get_state(self):
         # TODO: separate function
-        self.attack_count = 0
-        self.benign_count = 0
-        self.total_attack_count = 0
-        self.total_benign_count = 0
+        # self.attack_count = 0
+        # self.benign_count = 0
+        # self.total_attack_count = 0
+        # self.total_benign_count = 0
         for dp in self.datapaths.values():
             self.send_flow_stats_request(dp)
         hub.sleep(2) #TODO sleep
@@ -136,17 +138,20 @@ class TrafficMonitor(simple_switch_13.SimpleSwitch13):
             flow_count_n += 1
             packet_count_n += stat.packet_count
             byte_count_n += stat.byte_count
+            print(str(stat))
+                #                     stat.match.__getitem__("ipv4_dst") == DEST_IP and \
 
             try:
                 if stat.match.__getitem__("ipv4_src") == SPOOFED_SRC_IP and \
-                    stat.match.__getitem__("ipv4_dst") == DEST_IP and \
                         datapath.id in range(4, 7):
+                    print("*")
                     self.total_attack_count += stat.packet_count
                 elif stat.match.__getitem__("ipv4_src") != SPOOFED_SRC_IP and \
-                    stat.match.__getitem__("ipv4_dst") == DEST_IP and \
                         datapath.id in range(4, 7):
+                    print("**")
                     self.total_benign_count += stat.packet_count
             except:
+                # print("in Except")
                 pass
 
             try:
@@ -169,8 +174,6 @@ class TrafficMonitor(simple_switch_13.SimpleSwitch13):
             self.state[datapath.id][1] = packet_count_n
             self.state[datapath.id][2] = byte_count_n
             self.state[datapath.id][3] = flow_count_n
-
-        self.packet_count[datapath.id] = packet_count_n
 
         for port_no in range(1, self.network_info["no_of_ports_per_switch"] + 1):
             req = ofp_parser.OFPPortStatsRequest(datapath, 0, port_no)
@@ -237,14 +240,14 @@ class TrafficMonitor(simple_switch_13.SimpleSwitch13):
     def calculate_reward(self):
         # print("attack on 7 " + str(self.attack_count))
         # print("benign on 7 " + str(self.benign_count))
-        # print("Attack " + str(self.total_attack_count))
-        # print("Benign " + str(self.total_benign_count))
+        print("Attack " + str(self.total_attack_count))
+        print("Benign " + str(self.total_benign_count))
 
-        pa = float(self.attack_count)/float(self.total_attack_count)
-        pb = float(self.benign_count)/float(self.total_benign_count)
+        # pa = float(self.attack_count)/float(self.total_attack_count)
+        # pb = float(self.benign_count)/float(self.total_benign_count)
 
-        self.reward = float(LAMBD*pb) + float((1 - LAMBD)*(1 - pa))
-        print(self.reward)
+        # self.reward = float(LAMBD*pb) + float((1 - LAMBD)*(1 - pa))
+        # print(self.reward)
 
     def add_meter_band(self, datapath, rate):
         # datapath = ev.msg.datapath
@@ -270,8 +273,9 @@ class TrafficMonitor(simple_switch_13.SimpleSwitch13):
         datapath.send_msg(request)
 
     def reset(self):
-        for i in range(NUMBER_OF_SWITCHES):
-            self.add_meter_band(self.datapaths[i+1], MAX_BANDWIDTH)
+        for i in range(1, NUMBER_OF_SWITCHES + 1):
+            print(str(i))
+            self.add_meter_band(self.datapaths[i], MAX_BANDWIDTH)
         self.get_state()
 
     def step(self, action):

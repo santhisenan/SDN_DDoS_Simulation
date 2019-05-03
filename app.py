@@ -148,6 +148,7 @@ class TrafficMonitor(simple_switch_13.SimpleSwitch13):
             packet_count_n += stat.packet_count
             byte_count_n += stat.byte_count
 
+            # print(str(stat))
             try:
                 if stat.match.__getitem__("ipv4_src") == '10.1.1.1' and \
                     stat.match.__getitem__("ipv4_dst") == '10.0.0.8' and \
@@ -264,16 +265,16 @@ class TrafficMonitor(simple_switch_13.SimpleSwitch13):
         self.attack_packet_count[datapath.id] = body.packet_count
 
     def get_reward(self):
-        # print("attack on 7 " + str(self.atck_count))
-        # print("benign on 7 " + str(self.benign_count))
-        # print("Attack " + str(self.total_attack_count))
-        # print("Benign " + str(self.total_benign_count))
+        print("attack on 7 " + str(self.atck_count))
+        print("benign on 7 " + str(self.benign_count))
+        print("Attack " + str(self.total_attack_count))
+        print("Benign " + str(self.total_benign_count))
 
-        pa = float(self.atck_count)/float(self.total_attack_count)
-        pb = float(self.benign_count)/float(self.total_benign_count)
+        # pa = float(self.atck_count)/float(self.total_attack_count)
+        # pb = float(self.benign_count)/float(self.total_benign_count)
 
-        self.reward = float(LAMBD*pb) + float((1 - LAMBD)*(1 - pa))
-        print(self.reward)
+        # self.reward = float(LAMBD*pb) + float((1 - LAMBD)*(1 - pa))
+        # print(self.reward)
 
         # pass
         # total_attack_packet_count = BANDWIDTH_RATE * time_diff * 1000000.0
