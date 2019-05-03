@@ -132,17 +132,18 @@ class TrafficMonitor(simple_switch_13.SimpleSwitch13):
         byte_count_n = 0
         flow_count_n = 0
 
-        # match = ofp_parser.OFPMatch(eth_type=0x0800, ipv4_src=ip_src)
+        match = ofp_parser.OFPMatch(eth_type=0x0800, ipv4_src=SPOOFED_SRC_IP)
 
         for stat in ([flow for flow in body]):
             flow_count_n += 1
             packet_count_n += stat.packet_count
             byte_count_n += stat.byte_count
             print(str(stat))
-                #                     stat.match.__getitem__("ipv4_dst") == DEST_IP and \
+                #                     
 
             try:
                 if stat.match.__getitem__("ipv4_src") == SPOOFED_SRC_IP and \
+                    stat.match.__getitem__("ipv4_dst") == DEST_IP and \
                         datapath.id in range(4, 7):
                     print("*")
                     self.total_attack_count += stat.packet_count
@@ -290,6 +291,11 @@ class TrafficMonitor(simple_switch_13.SimpleSwitch13):
         next_state = self.input_state
         reward = self.reward
         done = False  # TODO
+
+        self.attack_count = 0
+        self.benign_count = 0
+        self.total_attack_count = 0
+        self.total_benign_count = 0
 
         return next_state, reward, done
 
