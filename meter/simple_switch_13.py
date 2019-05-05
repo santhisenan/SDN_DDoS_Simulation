@@ -29,7 +29,7 @@ class SimpleSwitch13(app_manager.RyuApp):
         self.add_flow(datapath, 0, match, actions, meter=None)
 
         bands = []
-        dropband = parser.OFPMeterBandDrop(rate=200, burst_size=0) #?
+        dropband = parser.OFPMeterBandDrop(type_=ofproto.OFPMBT_DROP, rate=200, burst_size=0) #?
         bands.append(dropband)
         request = parser.OFPMeterMod(datapath=datapath,
                                         command=ofproto.OFPMC_ADD,
@@ -37,6 +37,8 @@ class SimpleSwitch13(app_manager.RyuApp):
                                         meter_id=1,
                                         bands=bands)
         datapath.send_msg(request)
+        # self.add_flow(datapath, 0, match, actions, meter=None)
+
 
     def add_flow(self, datapath, priority, match, actions, buffer_id=None, meter=None):
         ofproto = datapath.ofproto
@@ -49,7 +51,7 @@ class SimpleSwitch13(app_manager.RyuApp):
 
         if buffer_id:
             mod = parser.OFPFlowMod(datapath=datapath, buffer_id=buffer_id,
-                                    priority=priority, match=match,
+                                    priority=priority,match=match,
                                     instructions=inst)
         else:
             mod = parser.OFPFlowMod(datapath=datapath, priority=priority,
@@ -72,7 +74,7 @@ class SimpleSwitch13(app_manager.RyuApp):
 
         pkt = packet.Packet(msg.data)
         eth = pkt.get_protocols(ethernet.ethernet)[0]
-
+        # print(str(pkt))
         if eth.ethertype == ether_types.ETH_TYPE_LLDP:
             # ignore lldp packet
             return
@@ -98,12 +100,14 @@ class SimpleSwitch13(app_manager.RyuApp):
 
 
         actions = [parser.OFPActionOutput(out_port)]
+        # self.logger.info("packet in %s %s %s %s Not ip", dpid, src, dst, in_port)
 
         # install a flow to avoid packet_in next time
         if out_port != ofproto.OFPP_FLOOD:
             if (ip):
                 dst_ip = ip.dst
                 src_ip = ip.src
+                # self.logger.info("packet in %s %s %s %s %s %s", dpid, src, dst, in_port, dst_ip, src_ip)
                 match = parser.OFPMatch(in_port=in_port, eth_dst=dst, eth_src=src, eth_type = 0x0800, ipv4_dst = dst_ip, ipv4_src = src_ip)
             
             else:

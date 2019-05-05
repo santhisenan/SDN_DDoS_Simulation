@@ -48,17 +48,19 @@ class TrafficMonitor(simple_switch_13.SimpleSwitch13):
     def _monitor(self):
         print("Initializing...")
         hub.sleep(10)
-        # while True:
-        self.main()
+        while True:
+            self.main()
 
     def main(self):
+        rate = 5
         for dp in self.datapaths.values():
-            rate = 100
+            # print("_____"+str(dp.id))
+            # pass        
             self.add_meter_band(dp, rate)
         time.sleep(10)
 
         for dp in self.datapaths.values():
-            # pass
+        #     # pass
             self.send_meter_config_stats_request(dp)
         time.sleep(5)
 
@@ -73,14 +75,14 @@ class TrafficMonitor(simple_switch_13.SimpleSwitch13):
         parser = datapath.ofproto_parser
 
         bands = []
-        dropband = parser.OFPMeterBandDrop(rate=int(rate), burst_size=100)
+        dropband = parser.OFPMeterBandDrop(rate=int(rate), burst_size=0)
         bands.append(dropband)
 
         # Delete meter incase it already exists (other instructions pre 
         # installed will still work)
         request = parser.OFPMeterMod(datapath=datapath, 
                                      command=ofproto.OFPMC_DELETE, 
-                                     flags=ofproto.OFPMF_KBPS, 
+                                     flags=ofproto.OFPMF_PKTPS, 
                                      meter_id=1, bands=bands)
         datapath.send_msg(request)
         # Create meter
@@ -149,9 +151,24 @@ class TrafficMonitor(simple_switch_13.SimpleSwitch13):
     def flow_stats_reply_handler(self, ev):
         flows = []
         packet_count = 0
+        total_attack_count = 0
+        total_benign_count = 0
         # print(ev.msg.body)
         for stat in ev.msg.body:
-            packet_count += stat.packet_count
+            # pass
+            print(str(stat))
+            # print(str(stat))
+            # print(stat.priority)
+            # if stat.priority == 1:
+            #     packet_count += stat.packet_count
+            # try:
+            #     if stat.match.__getitem__("ipv4_src") == '10.1.1.1' and \
+            #         stat.match.__getitem__("ipv4_dst") == '10.0.0.8':
+            #         total_attack_count += stat.packet_count
+            #     elif stat.match.__getitem__("ipv4_src") != '10.1.1.1':
+            #         total_benign_count += stat.packet_count
+            # except:
+            #     pass
             # flows.append('table_id=%s '
             #             'duration_sec=%d duration_nsec=%d '
             #             'priority=%d '
@@ -165,4 +182,5 @@ class TrafficMonitor(simple_switch_13.SimpleSwitch13):
             #             stat.cookie, stat.packet_count, stat.byte_count,
             #             stat.match, stat.instructions))
         # self.logger.info('FlowStats: %s', flows)
-        print(str(ev.msg.datapath.id) + ' ' + str(packet_count))
+        # print(str(ev.msg.datapath.id) + ' ' + str(total_attack_count) +' '+str(total_benign_count))
+        # print(str(ev.msg.datapath.id) + ' ' + str(packet_count)) #+' '+str(stat.match))
