@@ -22,8 +22,7 @@ class ActorNetwork(tf.keras.Model):
                                         name='hidden_3')
         self.output_layer = tf.layers.Dense(units=action_dim, 
                                             trainable=trainable,
-                                            name='output_layer') # Default 
-                                                        # activation function
+                                            name='output_layer') 
 
     def call(self, inputs):
         x = self.hidden_1(inputs)

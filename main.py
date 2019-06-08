@@ -24,6 +24,21 @@ from actor_network import ActorNetwork as Actor
 from critic_network import CriticNetwork as Critic 
 from replay_buffer import ReplayBuffer as Memory
 
+#####################################################################################################
+## Algorithm
+
+# Deep Deterministic Policy Gradient (DDPG)
+# An off-policy actor-critic algorithm that uses additive exploration noise (e.g. an Ornstein-Uhlenbeck process) on top
+# of a deterministic policy to generate experiences (s, a, r, s'). It uses minibatches of these experiences from replay
+# memory to update the actor (policy) and critic (Q function) parameters.
+# Neural networks are used for function approximation.
+# Slowly-changing "target" networks are used to improve stability and encourage convergence.
+# Parameter updates are made via Adam.
+# Assumes continuous action spaces!
+
+#####################################################################################################
+
+
 
 GAMMA = 0.99
 HIDDEN_1_ACTOR = 8
@@ -102,7 +117,6 @@ class TrafficMonitor(simple_switch_13.SimpleSwitch13):
     def _monitor(self):
         print("Initializing...")
         hub.sleep(10)
-        # while True:
         self.main()
 
     def get_state(self):

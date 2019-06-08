@@ -9,7 +9,8 @@ from ryu.lib.packet import ethernet
 from ryu.lib.packet import ipv4
 from ryu.lib.packet import ether_types
 
-
+# SimpleSwitch13 is a simple learning switch
+# This app Works on top of controller
 class SimpleSwitch13(app_manager.RyuApp):
     OFP_VERSIONS = [ofproto_v1_3.OFP_VERSION]
 
@@ -29,15 +30,16 @@ class SimpleSwitch13(app_manager.RyuApp):
         self.add_flow(datapath, 0, match, actions, meter=None)
 
         bands = []
-        dropband = parser.OFPMeterBandDrop(rate=200, burst_size=0) #?
+        dropband = parser.OFPMeterBandDrop(rate=200, burst_size=0)
         bands.append(dropband)
         request = parser.OFPMeterMod(datapath=datapath,
                                         command=ofproto.OFPMC_ADD,
-                                        flags=ofproto.OFPMF_PKTPS,#ofproto.OFPMF_KBPS
+                                        flags=ofproto.OFPMF_PKTPS,
                                         meter_id=1,
                                         bands=bands)
         datapath.send_msg(request)
-
+        
+    # add_flow is used to add new flow entry in flow table
     def add_flow(self, datapath, priority, match, actions, buffer_id=None, meter=None):
         ofproto = datapath.ofproto
         parser = datapath.ofproto_parser
