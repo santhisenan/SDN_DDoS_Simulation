@@ -40,14 +40,17 @@ class SimpleSwitch13(app_manager.RyuApp):
         datapath.send_msg(request)
         
     # add_flow is used to add new flow entry in flow table
-    def add_flow(self, datapath, priority, match, actions, buffer_id=None, meter=None):
+    def add_flow(self, datapath, priority, match, actions, buffer_id=None, \
+        meter=None):
         ofproto = datapath.ofproto
         parser = datapath.ofproto_parser
 
         if meter:
-            inst = [parser.OFPInstructionActions(ofproto.OFPIT_APPLY_ACTIONS,actions),parser.OFPInstructionMeter(1)]
+            inst = [parser.OFPInstructionActions(ofproto.OFPIT_APPLY_ACTIONS, \
+                actions),parser.OFPInstructionMeter(1)]
         else:
-            inst = [parser.OFPInstructionActions(ofproto.OFPIT_APPLY_ACTIONS,actions)]
+            inst = [parser.OFPInstructionActions(ofproto.OFPIT_APPLY_ACTIONS, \
+                actions)]
 
         if buffer_id:
             mod = parser.OFPFlowMod(datapath=datapath, buffer_id=buffer_id,
@@ -106,15 +109,19 @@ class SimpleSwitch13(app_manager.RyuApp):
             if (ip):
                 dst_ip = ip.dst
                 src_ip = ip.src
-                match = parser.OFPMatch(in_port=in_port, eth_dst=dst, eth_src=src, eth_type = 0x0800, ipv4_dst = dst_ip, ipv4_src = src_ip)
+                match = parser.OFPMatch(in_port=in_port, eth_dst=dst, \
+                    eth_src=src, eth_type = 0x0800, ipv4_dst = dst_ip, \
+                        ipv4_src = src_ip)
             
             else:
-                match = parser.OFPMatch(in_port=in_port, eth_dst=dst, eth_src=src)
+                match = parser.OFPMatch(in_port=in_port, eth_dst=dst, \
+                    eth_src=src)
             
             # verify if we have a valid buffer_id, if yes avoid to send both
             # flow_mod & packet_out
             if msg.buffer_id != ofproto.OFP_NO_BUFFER:
-                self.add_flow(datapath, 1, match, actions, msg.buffer_id, meter = True)
+                self.add_flow(datapath, 1, match, actions, msg.buffer_id, \
+                    meter = True)
                 return
             else:
                 self.add_flow(datapath, 1, match, actions, meter = True)
