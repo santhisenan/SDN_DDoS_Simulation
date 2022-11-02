@@ -1,5 +1,5 @@
 # DDoS Simulation in a Software Defined Network
-This project aims to provide a basic framework for DDoS mitigation using Deep reinforcement learning. The network is implemented using Mininet (based on Software defind networking).
+This project aims to provide a basic framework for DDoS mitigation using Deep reinforcement learning. The network is implemented using Mininet (based on Software defined networking).
 
 The design of the solution is inspired by the work "Deep Reinforcement Learning based Smart Mitigation of DDoS Flooding in Software-Defined Networks" by Yandong Liu and others [here](https://ieeexplore.ieee.org/abstract/document/8514971).
 
@@ -51,7 +51,7 @@ PYTHONPATH=. ryu/ryu/bin/ryu-manager main.py
 ## Authors
 
 * Santhisenan Ajith
-* Vishnu Kaimel
+* Vishnu Kaimal
 * Mohammed Musthafa K
 * Ankith Madusudanan
 
